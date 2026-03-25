@@ -1,0 +1,140 @@
+<%- include('../partials/header') %>
+
+<% const isHomePage = (typeof currentCategoryName !== 'undefined' && currentCategoryName === null && typeof isSearch !== 'undefined' && !isSearch && typeof currentCategoryId !== 'undefined' && currentCategoryId === null); %>
+
+<% if (isHomePage) { %>
+  <% const heroVideo = videos[0]; %>
+  <% const heroSideVideos = videos.slice(1, 4); %>
+
+  <section class="mf-hero-billboard" style="--bg-url: url('<%= heroVideo ? (heroVideo.cover || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80') : '' %>')">
+    <% if (heroVideo) { %>
+      <div class="mf-hero-backdrop"></div>
+      <div class="mf-billboard-content">
+        
+        <a href="/video/<%= heroVideo.id %>" class="mf-billboard-poster">
+          <img src="<%= heroVideo.cover || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80' %>" alt="<%= heroVideo.title %>" loading="lazy" />
+          <span class="mf-card-badge" style="top: 12px; left: 12px; z-index: 2;"><%= heroVideo.sourceName || '最新更新' %></span>
+        </a>
+
+        <div class="mf-billboard-info">
+          <h1 class="mf-billboard-title"><%= heroVideo.title %></h1>
+          <div class="mf-billboard-meta">
+            <span><%= heroVideo.year || new Date().getFullYear() %></span>
+            <span>•</span>
+            <span><%= heroVideo.category && heroVideo.category.name ? heroVideo.category.name : '精选' %></span>
+          </div>
+          
+          <div class="mf-billboard-actions">
+            <a href="/video/<%= heroVideo.id %>" class="mf-btn-play">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> 
+              立即播放正片
+            </a>
+          </div>
+
+          <% if (heroSideVideos.length) { %>
+            <div class="mf-billboard-hot">
+              <h3 class="mf-billboard-hot-title">同步热推</h3>
+              <div class="mf-billboard-hot-list">
+                <% heroSideVideos.forEach((video) => { %>
+                  <a href="/video/<%= video.id %>" class="mf-billboard-hot-item">
+                    <img src="<%= video.cover || 'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&q=80' %>" alt="<%= video.title %>" loading="lazy" />
+                    <div class="mf-hot-item-title"><%= video.title %></div>
+                  </a>
+                <% }) %>
+              </div>
+            </div>
+          <% } %>
+          
+        </div>
+      </div>
+    <% } else { %>
+      <div class="mf-empty" style="grid-column: 1 / -1;">暂无数据，请先前往后台添加采集源并执行采集。</div>
+    <% } %>
+  </section>
+
+  <section class="mf-section">
+    <div class="mf-section-header">
+      <h2 class="mf-section-title">今日热播</h2>
+      <a href="/search" class="mf-section-more">查看全部视频</a>
+    </div>
+    <div class="mf-grid">
+      <% videos.slice(0, 12).forEach((video) => { %>
+        <a href="/video/<%= video.id %>" class="mf-card">
+          <div class="mf-card-poster">
+            <img src="<%= video.cover || 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&q=80' %>" alt="<%= video.title %>" loading="lazy" />
+            <span class="mf-card-badge"><%= video.sourceName || 'HD' %></span>
+            <div class="mf-card-play-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </div>
+          </div>
+          <div class="mf-card-info">
+            <h3 class="mf-card-title"><%= video.title %></h3>
+            <div class="mf-card-meta" style="display: flex; justify-content: space-between; align-items: center;">
+              <span><%= video.category ? video.category.name : '剧情' %></span>
+              <span><%= video.updatedAtSource ? video.updatedAtSource.substring(0, 4) : new Date(video.createdAt).getFullYear() %></span>
+            </div>
+          </div>
+        </a>
+      <% }) %>
+    </div>
+  </section>
+
+  <section class="mf-section">
+    <div class="mf-section-header">
+      <h2 class="mf-section-title">重磅推荐</h2>
+      <a href="/search" class="mf-section-more">更多专题</a>
+    </div>
+    <div class="mf-grid">
+      <% videos.slice(12, 18).forEach((video) => { %>
+        <a href="/video/<%= video.id %>" class="mf-card">
+          <div class="mf-card-poster">
+            <img src="<%= video.cover || 'https://images.unsplash.com/photo-1533422902779-babd491f0468?auto=format&fit=crop&q=80' %>" alt="<%= video.title %>" loading="lazy" />
+            <span class="mf-card-badge" style="background: rgba(245, 177, 32, 0.8); color: #000; border: none;">推荐</span>
+            <div class="mf-card-play-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </div>
+          </div>
+          <div class="mf-card-info">
+            <h3 class="mf-card-title"><%= video.title %></h3>
+            <div class="mf-card-meta" style="display: flex; justify-content: space-between; align-items: center;">
+              <span><%= video.category ? video.category.name : '最新' %></span>
+              <span><%= video.updatedAtSource ? video.updatedAtSource.substring(0, 4) : new Date(video.createdAt).getFullYear() %></span>
+            </div>
+          </div>
+        </a>
+      <% }) %>
+    </div>
+  </section>
+
+<% } else { %>
+  <section class="mf-section" style="margin-top: 20px;">
+    <% if (videos && videos.length) { %>
+      <div class="mf-grid">
+        <% videos.forEach((video) => { %>
+          <a href="/video/<%= video.id %>" class="mf-card">
+            <div class="mf-card-poster">
+              <img src="<%= video.cover || 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&q=80' %>" alt="<%= video.title %>" loading="lazy" />
+              <span class="mf-card-badge"><%= video.sourceName || 'HD' %></span>
+              <div class="mf-card-play-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              </div>
+            </div>
+            <div class="mf-card-info">
+              <h3 class="mf-card-title"><%= video.title %></h3>
+              <div class="mf-card-meta" style="display: flex; justify-content: space-between; align-items: center;">
+                <span><%= video.category ? video.category.name : '精选' %></span>
+                <span><%= video.updatedAtSource ? video.updatedAtSource.substring(0, 4) : new Date(video.createdAt).getFullYear() %></span>
+              </div>
+            </div>
+          </a>
+        <% }) %>
+      </div>
+    <% } else { %>
+      <div class="mf-empty" style="min-height: 50vh; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--mf-text-secondary); background: transparent; border: 1px dashed rgba(255,255,255,0.1); border-radius: var(--mf-radius-md);">
+        深感抱歉，该分类下暂无影视入库，请更换其它分类看看吧~
+      </div>
+    <% } %>
+  </section>
+<% } %>
+
+<%- include('../partials/footer') %>

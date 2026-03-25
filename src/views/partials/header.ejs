@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %> - 壹影视</title>
+    <link rel="stylesheet" href="/public/modern-frontend.css" />
+  </head>
+  <body>
+    <header class="mf-header">
+      <div class="mf-container mf-header-inner">
+        <a class="mf-logo" href="/">
+          <div class="mf-logo-icon">YI</div>
+          壹影视
+        </a>
+        <div class="mf-header-actions">
+          <form action="/search" method="get" class="mf-search">
+            <input type="search" name="q" placeholder="搜索你想看的..." value="<%= typeof query !== 'undefined' ? query : '' %>" />
+            <button type="submit" aria-label="Search">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </button>
+          </form>
+          <a href="/admin" class="mf-btn-login">登录后台</a>
+        </div>
+      </div>
+    </header>
+    <main class="mf-main">
+      <div class="mf-container">
+        <div class="mf-shell">
+          <aside class="mf-side-nav" aria-label="分类导航">
+            <h3>分类</h3>
+            <% const navCategories = Array.isArray(categories) ? categories : []; %>
+            <a href="/" class="<%= (typeof currentCategoryId !== 'undefined' && currentCategoryId === null && typeof currentCategoryName !== 'undefined' && currentCategoryName === null && !isSearch) ? 'is-active' : '' %>">推荐</a>
+            <% navCategories.forEach((cat) => { %>
+              <a
+                href="/category-by-name/<%= encodeURIComponent(cat.name) %>"
+                class="<%= (typeof currentCategoryId !== 'undefined' && Number(currentCategoryId) === Number(cat.id)) || (typeof currentCategoryName !== 'undefined' && currentCategoryName === cat.name) ? 'is-active' : '' %>"
+              ><%= cat.name %></a>
+            <% }) %>
+          </aside>
+          <section class="mf-content">

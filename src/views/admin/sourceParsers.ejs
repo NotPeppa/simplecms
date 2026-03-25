@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %> - simplecms</title>
+    <link rel="stylesheet" href="/public/style.css" />
+  </head>
+  <body class="yi-admin-body">
+    <div class="yi-admin-shell">
+      <aside class="yi-admin-sidebar">
+        <a href="/admin" class="yi-admin-logo">壹影视 CMS</a>
+        <nav class="yi-admin-nav">
+          <a href="/admin">仪表盘</a>
+          <a href="/admin/sources" class="is-active">采集源管理</a>
+          <a href="/admin/logs">采集日志</a>
+          <a href="/">返回前台</a>
+        </nav>
+        <a href="/admin/logout" class="yi-admin-logout">退出登录</a>
+      </aside>
+
+      <main class="yi-admin-main">
+        <header class="yi-admin-header">
+          <div>
+            <h1>解析配置 - <%= source.name %></h1>
+            <p>为当前采集源配置 from => 解析接口，支持 JSON 导入</p>
+          </div>
+        </header>
+
+        <% if (result) { %>
+          <div class="alert yi-admin-alert <%= result.ok ? 'alert-ok' : 'alert-error' %>"><%= result.message %></div>
+        <% } %>
+
+        <section class="yi-admin-card yi-admin-panel" style="margin-bottom: 16px">
+          <div class="yi-admin-panel-title">
+            <h2>手动新增 / 更新</h2>
+            <a href="/admin/sources" class="yi-admin-link-btn">返回采集源列表</a>
+          </div>
+          <form action="/admin/sources/<%= source.id %>/parsers" method="post" class="yi-admin-form-grid">
+            <div class="form-row"><input type="text" name="from" placeholder="from，例如：wjm3u8" required /></div>
+            <div class="form-row"><input type="text" name="show" placeholder="显示名称，例如：无尽" /></div>
+            <div class="form-row"><input type="text" name="parse" placeholder="解析地址，例如：https://jx.wujinkk.com/dplayer/?url=（ps=0可留空）" /></div>
+            <div class="form-row"><input type="number" min="0" max="1" name="ps" value="1" placeholder="ps（1走解析，0直连）" /></div>
+            <div class="form-row"><input type="text" name="target" value="_self" placeholder="target，例如：_self 或 _blank" /></div>
+            <div class="form-row"><input type="number" name="sort" value="0" placeholder="排序" /></div>
+            <button type="submit">保存解析配置</button>
+          </form>
+        </section>
+
+        <section class="yi-admin-card yi-admin-panel" style="margin-bottom: 16px">
+          <div class="yi-admin-panel-title">
+            <h2>JSON 导入</h2>
+          </div>
+          <form action="/admin/sources/<%= source.id %>/parsers/import" method="post" class="yi-admin-form-grid">
+            <div class="form-row">
+              <input id="parser-json-file" type="file" accept="application/json,.json,text/plain" />
+            </div>
+            <div class="form-row">
+              <textarea id="parser-json-input" name="parserJson" class="yi-admin-textarea" placeholder='可粘贴单条或数组，例如：{"from":"wjm3u8","show":"无尽","parse":"https://jx.wujinkk.com/dplayer/?url="}' required></textarea>
+            </div>
+            <button type="submit">导入 JSON</button>
+          </form>
+        </section>
+
+        <section class="yi-admin-card yi-admin-panel">
+          <div class="yi-admin-panel-title">
+            <h2>已配置解析</h2>
+          </div>
+          <div class="table-wrap yi-admin-table-wrap">
+            <table class="yi-admin-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>from</th>
+                  <th>显示名称</th>
+                  <th>ps</th>
+                  <th>target</th>
+                  <th>解析地址</th>
+                  <th>排序</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% parsers.forEach((parser) => { %>
+                  <tr>
+                    <td>#<%= parser.id %></td>
+                    <td><%= parser.fromCode %></td>
+                    <td><%= parser.showName || '-' %></td>
+                    <td><%= parser.ps || '1' %></td>
+                    <td><%= parser.target || '-' %></td>
+                    <td><span class="yi-admin-url"><%= parser.parseUrl %></span></td>
+                    <td><%= parser.sort %></td>
+                    <td>
+                      <% if (parser.enabled) { %>
+                        <span class="tag tag-ok">启用</span>
+                      <% } else { %>
+                        <span class="tag tag-fail">停用</span>
+                      <% } %>
+                    </td>
+                    <td>
+                      <form action="/admin/sources/<%= source.id %>/parsers/<%= parser.id %>/toggle" method="post">
+                        <button type="submit" class="<%= parser.enabled ? 'button-danger' : '' %>"><%= parser.enabled ? '停用' : '启用' %></button>
+                      </form>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      (function () {
+        const fileInput = document.getElementById('parser-json-file');
+        const textarea = document.getElementById('parser-json-input');
+        if (!fileInput || !textarea) {
+          return;
+        }
+
+        fileInput.addEventListener('change', function () {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) {
+            return;
+          }
+
+          const reader = new FileReader();
+          reader.onload = function () {
+            textarea.value = String(reader.result || '').trim();
+          };
+          reader.readAsText(file, 'utf-8');
+        });
+      })();
+    </script>
+  </body>
+</html>

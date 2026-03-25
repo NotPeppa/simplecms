@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %> - simplecms</title>
+    <link rel="stylesheet" href="/public/style.css" />
+  </head>
+  <body class="yi-admin-body">
+    <div class="yi-admin-shell">
+      <aside class="yi-admin-sidebar">
+        <a href="/admin" class="yi-admin-logo">壹影视 CMS</a>
+        <nav class="yi-admin-nav">
+          <a href="/admin">仪表盘</a>
+          <a href="/admin/sources">采集源管理</a>
+          <a href="/admin/collect/search">全站搜索</a>
+          <a href="/admin/videos">资源管理</a>
+          <a href="/admin/logs" class="is-active">采集日志</a>
+          <a href="/">返回前台</a>
+        </nav>
+        <a href="/admin/logout" class="yi-admin-logout">退出登录</a>
+      </aside>
+
+      <main class="yi-admin-main">
+        <header class="yi-admin-header">
+          <div>
+            <h1>采集日志</h1>
+            <p>记录最近 200 条采集任务执行状态</p>
+          </div>
+        </header>
+
+        <section class="yi-admin-card yi-admin-panel">
+          <div class="table-wrap yi-admin-table-wrap">
+            <table class="yi-admin-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>来源</th>
+                  <th>状态</th>
+                  <th>新增</th>
+                  <th>更新</th>
+                  <th>跳过</th>
+                  <th>详情</th>
+                  <th>时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% logs.forEach((log) => { %>
+                  <tr>
+                    <td>#<%= log.id %></td>
+                    <td><%= log.sourceName %></td>
+                    <td>
+                      <% if (log.status === 'success') { %>
+                        <span class="tag tag-ok">成功</span>
+                      <% } else { %>
+                        <span class="tag tag-fail">失败</span>
+                      <% } %>
+                    </td>
+                    <td><%= log.importedCount %></td>
+                    <td><%= log.updatedCount %></td>
+                    <td><%= log.skippedCount %></td>
+                    <td><%= log.detail || '' %></td>
+                    <td><%= log.createdAt.toLocaleString('zh-CN') %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

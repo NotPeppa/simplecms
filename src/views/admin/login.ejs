@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %> - simplecms</title>
+    <link rel="stylesheet" href="/public/style.css" />
+  </head>
+  <body class="yi-admin-body yi-admin-login-body">
+    <main class="yi-admin-login-wrap">
+      <section class="yi-admin-login-card">
+        <div class="yi-admin-login-brand">壹影视 CMS</div>
+        <h1>后台登录</h1>
+        <p>登录后可管理采集源并执行采集任务</p>
+
+        <% if (error) { %>
+          <div class="alert yi-admin-alert alert-error"><%= error %></div>
+        <% } %>
+
+        <form action="/admin/login" method="post" class="yi-admin-login-form">
+          <div class="form-row"><input type="text" name="username" placeholder="用户名" required /></div>
+          <div class="form-row"><input type="password" name="password" placeholder="密码" required /></div>
+          <button type="submit">登录后台</button>
+        </form>
+
+        <a href="/" class="yi-admin-back-link">← 返回前台首页</a>
+      </section>
+    </main>
+  </body>
+</html>

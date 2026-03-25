@@ -1,0 +1,112 @@
+<%- include('../partials/header') %>
+
+<section class="mf-detail-wrap">
+  <article class="mf-detail-hero">
+    <div class="mf-detail-poster">
+      <img src="<%= video.cover || 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?auto=format&fit=crop&q=80' %>" alt="<%= video.title %>" loading="lazy" />
+    </div>
+    <div class="mf-detail-main">
+      <% const cleanDescription = String(video.description || '').replace(/<[^>]*>/g, '').trim(); %>
+      <h1 class="mf-detail-title"><%= video.title %></h1>
+      <div class="mf-detail-meta">
+        <span class="mf-detail-tag"><%= video.year || new Date().getFullYear() %></span>
+        <span class="mf-detail-tag"><%= video.category ? video.category.name : '未分类' %></span>
+        <span class="mf-detail-tag" style="background: rgba(245, 177, 32, 0.1); color: var(--mf-yellow); border-color: rgba(245, 177, 32, 0.3);"><%= video.sourceName || '超清' %></span>
+      </div>
+      <p class="mf-detail-desc"><%= cleanDescription || '这里是暂无简介。本影片由壹影视云端极速采集呈现。跟随我们的脚步，即刻进入无与伦比的光影世界...' %></p>
+      <div class="mf-detail-actions">
+        <a class="mf-btn-play" href="#player">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          立即播放
+        </a>
+        <a class="mf-btn-secondary" href="/">返回首页</a>
+      </div>
+    </div>
+  </article>
+
+  <section class="mf-panel">
+    <div class="mf-panel-header" style="flex-direction: column; align-items: flex-start; gap: 16px;">
+      <div style="display: flex; width: 100%; justify-content: space-between; align-items: center;">
+        <h2 class="mf-panel-title">选集播放</h2>
+        <span class="mf-panel-meta">共 <%= playItems.length %> 集正在连载/已完结</span>
+      </div>
+
+      <% if (sameTitleVideos && sameTitleVideos.length > 1) { %>
+        <div class="mf-source-tabs">
+          <% sameTitleVideos.forEach((v) => { %>
+            <a href="/video/<%= v.id %>#player" class="mf-source-tab <%= v.id === video.id ? 'is-active' : '' %>">
+              <%= v.sourceName || '备用资源' %>
+            </a>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+    <div class="mf-episodes">
+      <% playItems.forEach((item, idx) => { %>
+        <a class="mf-ep-item <%= idx === Number(currentEp || 0) ? 'is-active' : '' %>" href="?ep=<%= idx %>#player">
+          <%= item.name %>
+        </a>
+      <% }) %>
+    </div>
+  </section>
+
+  <section id="player" class="mf-player-wrapper">
+    <% const selected = playItems[currentEp] || playItems[0]; %>
+    <% if (selected) { %>
+      <div class="mf-player-head">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--mf-yellow);"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        正在播放：<%= selected.name %>
+        <span><%= selected.playVia === 'direct' ? '云端直连' : `解析器播放: ${selected.playVia}` %></span>
+      </div>
+
+      <div class="mf-player-container">
+        <% if (selected.type === 'media' || selected.type === 'm3u8') { %>
+          <video id="video-player" controls playsinline preload="metadata" src="<%= selected.type === 'media' ? selected.url : '' %>"></video>
+        <% } else if (selected.target === '_blank') { %>
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; font-size: 18px; background: #0f172a; border: 1px dashed rgba(255,255,255,0.2);">
+            当前专属超清线路要求新窗口播放，体验最佳视听盛宴
+            <a class="mf-btn-play" href="<%= selected.url %>" target="_blank" rel="noopener noreferrer" style="margin-top: 24px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+              前往播放页
+            </a>
+          </div>
+        <% } else { %>
+          <iframe src="<%= selected.url %>" allow="autoplay; fullscreen" allowfullscreen></iframe>
+        <% } %>
+      </div>
+
+      <div class="mf-player-tip">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        若当前线路缓冲缓慢或无法播放，请尝试重新刷新页面或切换其他选集。
+      </div>
+    <% } else { %>
+      <div class="mf-empty">暂无可用的播放地址。可能该资源正在转码或采集不完整。</div>
+    <% } %>
+  </section>
+</section>
+
+<%- include('../partials/footer') %>
+
+<% if (selected && selected.type === 'm3u8') { %>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+  <script>
+    (function () {
+      const video = document.getElementById('video-player');
+      const src = <%- JSON.stringify(selected.url) %>;
+      if (!video || !src) return;
+
+      if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = src;
+        return;
+      }
+
+      if (window.Hls && window.Hls.isSupported()) {
+        const hls = new window.Hls();
+        hls.loadSource(src);
+        hls.attachMedia(video);
+      } else {
+        video.outerHTML = '<div class="mf-empty">当前浏览器不支持HLS (m3u8) 极速播放，请更换主流浏览器访问。</div>';
+      }
+    })();
+  </script>
+<% } %>

@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %> - simplecms</title>
+    <link rel="stylesheet" href="/public/style.css" />
+  </head>
+  <body class="yi-admin-body">
+    <div class="yi-admin-shell">
+      <aside class="yi-admin-sidebar">
+        <a href="/admin" class="yi-admin-logo">壹影视 CMS</a>
+        <nav class="yi-admin-nav">
+          <a href="/admin">仪表盘</a>
+          <a href="/admin/sources">采集源管理</a>
+          <a href="/admin/collect/search" class="is-active">全站搜索</a>
+          <a href="/admin/videos">资源管理</a>
+          <a href="/admin/logs">采集日志</a>
+          <a href="/">返回前台</a>
+        </nav>
+        <a href="/admin/logout" class="yi-admin-logout">退出登录</a>
+      </aside>
+
+      <main class="yi-admin-main">
+        <header class="yi-admin-header">
+          <div>
+            <h1>全站搜索</h1>
+            <p>在所有启用采集站搜索资源，勾选后统一采集（勾选 1 条即单采）</p>
+          </div>
+        </header>
+
+        <% if (result) { %>
+          <div class="alert yi-admin-alert <%= result.ok ? 'alert-ok' : 'alert-error' %>"><%= result.message %></div>
+        <% } %>
+
+        <section class="yi-admin-card yi-admin-panel" style="margin-bottom: 16px">
+          <form action="/admin/collect/search" method="get" class="yi-admin-form-grid yi-admin-inline-grid">
+            <div class="form-row"><input type="text" name="keyword" value="<%= query.keyword || '' %>" placeholder="输入关键词，例如：哪吒" required /></div>
+            <div class="form-row">
+              <select name="sourceId">
+                <option value="0">全部采集站</option>
+                <% sources.forEach((s) => { %>
+                  <option value="<%= s.id %>" <%= Number(query.sourceId) === s.id ? 'selected' : '' %>><%= s.name %></option>
+                <% }) %>
+              </select>
+            </div>
+            <button type="submit">全站搜索</button>
+          </form>
+        </section>
+
+        <% if (errors && errors.length) { %>
+          <section class="yi-admin-card yi-admin-panel" style="margin-bottom: 16px">
+            <div class="yi-admin-panel-title"><h2>失败站点</h2></div>
+            <div>
+              <% errors.forEach((item) => { %>
+                <p><strong><%= item.sourceName %></strong>：<%= item.error %></p>
+              <% }) %>
+            </div>
+          </section>
+        <% } %>
+
+        <section class="yi-admin-card yi-admin-panel">
+          <div class="yi-admin-panel-title">
+            <h2>搜索结果（<%= rows.length %> 条）</h2>
+          </div>
+          <form id="batch-collect-form" action="/admin/collect/batch" method="post">
+            <input type="hidden" name="keyword" value="<%= query.keyword || '' %>" />
+            <input type="hidden" name="page" value="<%= query.page || 1 %>" />
+            <input type="hidden" name="sourceFilter" value="<%= query.sourceId || 0 %>" />
+            <input type="hidden" id="items-json" name="itemsJson" value="[]" />
+            <div style="margin-bottom:10px; display:flex; gap:8px; align-items:center;">
+              <button type="button" id="check-all-btn">全选</button>
+              <button type="button" id="uncheck-all-btn" class="button-danger">清空</button>
+              <button type="button" id="check-page-btn">反选</button>
+              <button type="submit">采集</button>
+              <span id="checked-count" class="yi-collect-hint">已选 0 条</span>
+            </div>
+          <div class="table-wrap yi-admin-table-wrap">
+            <table class="yi-admin-table">
+              <thead>
+                <tr>
+                  <th>勾选</th>
+                  <th>采集站</th>
+                  <th>资源ID</th>
+                  <th>标题</th>
+                  <th>分类</th>
+                  <th>更新时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% rows.forEach((row) => { %>
+                  <tr>
+                    <td>
+                      <input
+                        type="checkbox"
+                        class="collect-item"
+                        name="items"
+                        value="<%= row.sourceDbId %>|<%= row.sourceItemId %>"
+                        data-source-id="<%= row.sourceDbId %>"
+                        data-source-name="<%= row.sourceName %>"
+                        data-source-api-url="<%= row.sourceApiUrl || '' %>"
+                        data-source-item-id="<%= row.sourceItemId %>"
+                        data-title="<%= row.title %>"
+                      />
+                    </td>
+                    <td><%= row.sourceName %></td>
+                    <td><%= row.sourceItemId %></td>
+                    <td><%= row.title %></td>
+                    <td><%= row.typeName %></td>
+                    <td><%= row.updatedAtSource || '-' %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+          </form>
+        </section>
+
+        <div id="collect-confirm-modal" class="yi-modal" hidden>
+          <div class="yi-modal-backdrop"></div>
+          <div class="yi-modal-panel" style="max-width: 420px">
+            <div class="yi-modal-head">
+              <h3>确认采集</h3>
+              <button type="button" class="yi-modal-close" id="collect-confirm-close">x</button>
+            </div>
+            <p id="collect-confirm-text" style="margin: 0 0 12px; color: #aebbd5">你确定要采集吗？</p>
+            <div class="yi-modal-foot">
+              <button type="button" class="button-danger" id="collect-confirm-cancel">取消</button>
+              <button type="button" id="collect-confirm-ok">确认采集</button>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      (function () {
+        const form = document.getElementById('batch-collect-form');
+        const itemsJsonInput = document.getElementById('items-json');
+        const allBtn = document.getElementById('check-all-btn');
+        const noneBtn = document.getElementById('uncheck-all-btn');
+        const reverseBtn = document.getElementById('check-page-btn');
+        const countText = document.getElementById('checked-count');
+        const items = Array.from(document.querySelectorAll('.collect-item'));
+        const tableWrap = document.querySelector('.yi-admin-table-wrap');
+        const confirmModal = document.getElementById('collect-confirm-modal');
+        const confirmText = document.getElementById('collect-confirm-text');
+        const confirmOk = document.getElementById('collect-confirm-ok');
+        const confirmCancel = document.getElementById('collect-confirm-cancel');
+        const confirmClose = document.getElementById('collect-confirm-close');
+        if (!allBtn || !noneBtn || !tableWrap) {
+          return;
+        }
+
+        function getItems() {
+          return Array.from(document.querySelectorAll('.collect-item'));
+        }
+
+        function refreshCount() {
+          if (!countText) {
+            return;
+          }
+          const checked = getItems().filter(function (el) {
+            return el.checked;
+          }).length;
+          countText.textContent = '已选 ' + checked + ' 条';
+        }
+
+        function collectSelectedPayload() {
+          return getItems()
+            .filter(function (el) {
+              return el.checked;
+            })
+            .map(function (el) {
+              return {
+                sourceId: String(el.getAttribute('data-source-id') || '').trim(),
+                sourceName: String(el.getAttribute('data-source-name') || '').trim(),
+                sourceApiUrl: String(el.getAttribute('data-source-api-url') || '').trim(),
+                sourceItemId: String(el.getAttribute('data-source-item-id') || '').trim(),
+                title: String(el.getAttribute('data-title') || '').trim()
+              };
+            })
+            .filter(function (item) {
+              return (item.sourceId || item.sourceName || item.sourceApiUrl) && item.sourceItemId;
+            });
+        }
+
+        allBtn.addEventListener('click', function () {
+          getItems().forEach(function (el) {
+            el.checked = true;
+          });
+          refreshCount();
+        });
+
+        noneBtn.addEventListener('click', function () {
+          getItems().forEach(function (el) {
+            el.checked = false;
+          });
+          refreshCount();
+        });
+
+        if (reverseBtn) {
+          reverseBtn.addEventListener('click', function () {
+            getItems().forEach(function (el) {
+              el.checked = !el.checked;
+            });
+            refreshCount();
+          });
+        }
+
+        tableWrap.addEventListener('change', function (event) {
+          if (event.target && event.target.classList && event.target.classList.contains('collect-item')) {
+            refreshCount();
+          }
+        });
+
+        function closeConfirmModal() {
+          if (confirmModal) {
+            confirmModal.hidden = true;
+          }
+        }
+
+        if (confirmCancel) {
+          confirmCancel.addEventListener('click', closeConfirmModal);
+        }
+        if (confirmClose) {
+          confirmClose.addEventListener('click', closeConfirmModal);
+        }
+        if (confirmOk && form) {
+          confirmOk.addEventListener('click', async function () {
+            const payloadItems = collectSelectedPayload();
+            if (!payloadItems.length) {
+              closeConfirmModal();
+              if (countText) {
+                countText.textContent = '请先勾选资源';
+              }
+              return;
+            }
+
+            if (itemsJsonInput) {
+              itemsJsonInput.value = JSON.stringify(payloadItems);
+            }
+
+            confirmOk.disabled = true;
+            confirmOk.textContent = '采集中...';
+
+            try {
+              const formData = new FormData(form);
+              const requestBody = new URLSearchParams();
+              formData.forEach(function (value, key) {
+                requestBody.append(key, value);
+              });
+              const response = await fetch('/admin/collect/batch', {
+                method: 'POST',
+                body: requestBody,
+                credentials: 'same-origin',
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                  'X-Requested-With': 'XMLHttpRequest',
+                  Accept: 'application/json'
+                }
+              });
+              const rawText = await response.text();
+              let data = null;
+              try {
+                data = JSON.parse(rawText);
+              } catch (_) {
+                data = {
+                  ok: false,
+                  message: rawText || ('请求失败（HTTP ' + response.status + '）')
+                };
+              }
+
+              if (countText) {
+                countText.textContent = data.message || (data.ok ? '采集完成' : '采集失败');
+              }
+              closeConfirmModal();
+            } catch (error) {
+              if (countText) {
+                countText.textContent = '采集失败：' + error.message;
+              }
+            } finally {
+              confirmOk.disabled = false;
+              confirmOk.textContent = '确认采集';
+            }
+          });
+        }
+
+        if (form) {
+          form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            const checked = getItems().filter(function (el) {
+              return el.checked;
+            }).length;
+            if (!checked) {
+              if (countText) {
+                countText.textContent = '请先勾选资源';
+              }
+              return;
+            }
+
+            if (confirmText) {
+              confirmText.textContent = '即将采集 ' + checked + ' 条资源，是否继续？';
+            }
+            if (confirmModal) {
+              confirmModal.hidden = false;
+            }
+          });
+        }
+
+        refreshCount();
+      })();
+    </script>
+  </body>
+</html>

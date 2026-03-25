@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %> - simplecms</title>
+    <link rel="stylesheet" href="/public/style.css" />
+  </head>
+  <body class="yi-admin-body">
+    <div class="yi-admin-shell">
+      <aside class="yi-admin-sidebar">
+        <a href="/admin" class="yi-admin-logo">壹影视 CMS</a>
+        <nav class="yi-admin-nav">
+          <a href="/admin">仪表盘</a>
+          <a href="/admin/sources">采集源管理</a>
+          <a href="/admin/collect/search">全站搜索</a>
+          <a href="/admin/videos" class="is-active">资源管理</a>
+          <a href="/admin/logs">采集日志</a>
+          <a href="/">返回前台</a>
+        </nav>
+        <a href="/admin/logout" class="yi-admin-logout">退出登录</a>
+      </aside>
+
+      <main class="yi-admin-main">
+        <header class="yi-admin-header">
+          <div>
+            <h1>资源管理</h1>
+            <p>共 <%= pagination.count %> 条，当前第 <%= pagination.page %>/<%= pagination.totalPages %> 页</p>
+          </div>
+        </header>
+
+        <section class="yi-admin-card yi-admin-panel" style="margin-bottom: 16px">
+          <form action="/admin/videos" method="get" class="yi-admin-form-grid yi-admin-inline-grid">
+            <div class="form-row"><input type="text" name="q" value="<%= query.q %>" placeholder="按标题搜索" /></div>
+            <div class="form-row">
+              <select name="sourceName">
+                <option value="">全部来源</option>
+                <% sourceNames.forEach((name) => { %>
+                  <option value="<%= name %>" <%= query.sourceName === name ? 'selected' : '' %>><%= name %></option>
+                <% }) %>
+              </select>
+            </div>
+            <div class="form-row">
+              <select name="categoryId">
+                <option value="0">全部分类</option>
+                <% categories.forEach((c) => { %>
+                  <option value="<%= c.id %>" <%= Number(query.categoryId) === c.id ? 'selected' : '' %>><%= c.name %></option>
+                <% }) %>
+              </select>
+            </div>
+            <button type="submit">筛选</button>
+          </form>
+        </section>
+
+        <section class="yi-admin-card yi-admin-panel">
+          <div class="yi-admin-panel-title">
+            <h2>资源列表</h2>
+          </div>
+          <div class="table-wrap yi-admin-table-wrap">
+            <table class="yi-admin-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>标题</th>
+                  <th>来源</th>
+                  <th>分类</th>
+                  <th>源更新时间</th>
+                  <th>创建时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% videos.forEach((video) => { %>
+                  <tr>
+                    <td>#<%= video.id %></td>
+                    <td><a href="/video/<%= video.id %>" target="_blank"><%= video.title %></a></td>
+                    <td><%= video.sourceName %></td>
+                    <td><%= video.category ? video.category.name : '-' %></td>
+                    <td><%= video.updatedAtSource || '-' %></td>
+                    <td><%= video.createdAt.toLocaleString('zh-CN') %></td>
+                    <td>
+                      <form action="/admin/videos/<%= video.id %>/delete" method="post" onsubmit="return confirm('确认删除该资源？')">
+                        <button type="submit" class="button-danger">删除</button>
+                      </form>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="yi-admin-pagination" style="margin-top: 12px; display:flex; gap:8px; flex-wrap:wrap;">
+            <% if (pagination.page > 1) { %>
+              <a class="yi-admin-link-btn" href="/admin/videos?q=<%= encodeURIComponent(query.q || '') %>&sourceName=<%= encodeURIComponent(query.sourceName || '') %>&categoryId=<%= Number(query.categoryId) || 0 %>&page=<%= pagination.page - 1 %>">上一页</a>
+            <% } %>
+            <% if (pagination.page < pagination.totalPages) { %>
+              <a class="yi-admin-link-btn" href="/admin/videos?q=<%= encodeURIComponent(query.q || '') %>&sourceName=<%= encodeURIComponent(query.sourceName || '') %>&categoryId=<%= Number(query.categoryId) || 0 %>&page=<%= pagination.page + 1 %>">下一页</a>
+            <% } %>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
