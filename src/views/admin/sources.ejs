@@ -122,6 +122,7 @@
             </div>
             <div class="yi-collect-progress-actions">
               <span id="collect-status-chip" class="yi-admin-chip yi-collect-status-chip">等待中</span>
+              <button id="collect-progress-resume-btn" type="button" class="button-primary" disabled>继续采集</button>
               <button id="collect-progress-stop-btn" type="button" class="button-danger" disabled>手动停止</button>
             </div>
           </div>
@@ -276,6 +277,7 @@
         const progressSkipped = document.getElementById('collect-progress-skipped');
         const progressTotal = document.getElementById('collect-progress-total');
         const progressStopBtn = document.getElementById('collect-progress-stop-btn');
+        const progressResumeBtn = document.getElementById('collect-progress-resume-btn');
         const collectStatusChip = document.getElementById('collect-status-chip');
         const currentBatchMeta = document.getElementById('collect-current-batch-meta');
         const currentBatchList = document.getElementById('collect-current-batch-list');
@@ -447,6 +449,10 @@
             progressStopBtn.disabled = task.status !== 'running' || !currentCollectTaskId;
           }
 
+          if (progressResumeBtn) {
+            progressResumeBtn.disabled = task.status === 'running' || !currentCollectTaskId;
+          }
+
           const imported = Number(task.importedCount || 0);
           const updated = Number(task.updatedCount || 0);
           const skipped = Number(task.skippedCount || 0);
@@ -566,6 +572,41 @@
           }
         }
 
+        async function resumeCurrentCollectTask() {
+          if (!currentCollectTaskId) {
+            return;
+          }
+          try {
+            const response = await fetch('/admin/collect/tasks/' + currentCollectTaskId + '/resume', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+              }
+            });
+            const data = await response.json();
+            if (!data.ok || !data.taskId) {
+              throw new Error(data.message || '继续采集失败');
+            }
+            currentCollectTaskId = data.taskId;
+            if (progressResumeBtn) {
+              progressResumeBtn.disabled = true;
+            }
+            if (progressStatusText) {
+              progressStatusText.textContent = '续采任务已启动，正在获取实时进度...';
+            }
+            showToast('续采任务已启动', true);
+            stopCollectTaskPolling();
+            await pollCollectTask(currentCollectTaskId);
+            collectTaskTimer = setInterval(function () {
+              pollCollectTask(currentCollectTaskId);
+            }, 2500);
+          } catch (error) {
+            showToast('继续采集失败：' + error.message, false);
+          }
+        }
+
         openButtons.forEach(function (btn) {
           btn.addEventListener('click', function () {
             openModal(btn.getAttribute('data-source-id'), btn.getAttribute('data-source-name') || '采集源');
@@ -579,6 +620,10 @@
 
         if (progressStopBtn) {
           progressStopBtn.addEventListener('click', stopCurrentCollectTask);
+        }
+
+        if (progressResumeBtn) {
+          progressResumeBtn.addEventListener('click', resumeCurrentCollectTask);
         }
 
         form.addEventListener('submit', async function (event) {

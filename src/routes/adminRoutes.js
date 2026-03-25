@@ -866,6 +866,52 @@ router.post('/collect/tasks/:taskId/stop', ensureAdmin, async (req, res) => {
   return res.json({ ok: true, message: '停止请求已提交', taskId: task.id });
 });
 
+router.post('/collect/tasks/:taskId/resume', ensureAdmin, async (req, res) => {
+  const taskId = String(req.params.taskId || '').trim();
+  const prevTask = collectTaskStore.get(taskId);
+  if (!prevTask) {
+    return res.status(404).json({ ok: false, message: '任务不存在或已过期' });
+  }
+
+  const source = await CollectorSource.findByPk(prevTask.sourceId);
+  if (!source) {
+    return res.status(404).json({ ok: false, message: '采集源不存在' });
+  }
+
+  if (prevTask.status === 'running') {
+    return res.json({ ok: false, message: '任务仍在进行中，无法继续采集' });
+  }
+
+  const resumeStartPage = Math.max(1, Number(prevTask.lastPage || prevTask.startPage || 1) + 1);
+  const endPage = Math.max(resumeStartPage, Number(prevTask.endPage || prevTask.startPage || resumeStartPage));
+  const mode = String(prevTask.mode || 'latest').toLowerCase() === 'all' ? 'all' : 'latest';
+  const typeId = Math.max(0, Number(prevTask.typeId || 0));
+  const hours = Math.max(0, Number(prevTask.hours || 0));
+
+  if (mode !== 'all' && resumeStartPage > endPage) {
+    return res.json({ ok: false, message: '已到达结束页，无法继续采集' });
+  }
+
+  const task = createCollectTask(source, {
+    mode,
+    startPage: resumeStartPage,
+    endPage,
+    typeId,
+    hours
+  });
+
+  task.logs.push(`继续采集：从第 ${resumeStartPage} 页开始`);
+  runCollectTask(task, source, {
+    mode,
+    startPage: resumeStartPage,
+    endPage,
+    typeId,
+    hours
+  });
+
+  return res.json({ ok: true, message: '续采任务已启动', taskId: task.id });
+});
+
 router.get('/collect/search', ensureAdmin, async (req, res) => {
   const keyword = String(req.query.keyword || '').trim();
   const page = Math.max(1, Number(req.query.page || 1));
