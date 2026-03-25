@@ -481,10 +481,15 @@
                 items
                   .map(function (item, index) {
                     const info = itemStatusMap[item.status] || { label: String(item.status || '-'), className: '' };
+                    const reasonMap = {
+                      unchanged: '资源未变化',
+                      missing_source_id_or_play_url: '缺少资源ID或播放地址'
+                    };
+                    const reasonText = item.reason ? '（' + (reasonMap[item.reason] || String(item.reason)) + '）' : '';
                     return (
                       '<li class="yi-collect-item-row">' +
                       '<span class="yi-collect-item-badge ' + info.className + '">' + info.label + '</span>' +
-                      '<span class="yi-collect-item-title">' + String(index + 1) + '. ' + String(item.title || '未命名视频') + '</span>' +
+                      '<span class="yi-collect-item-title">' + String(index + 1) + '. ' + String(item.title || '未命名视频') + reasonText + '</span>' +
                       '</li>'
                     );
                   })

@@ -178,49 +178,6 @@ volumes:
   mysql_data:
 ```
 
-如果镜像是私有的，先登录 GHCR：
-
-```bash
-docker login ghcr.io
-```
-
-然后执行：
-
-```bash
-docker compose pull
-docker compose up -d
-```
-
-## GitHub Actions 自动构建镜像
-
-已新增工作流 [`docker-image.yml`](.github/workflows/docker-image.yml)，功能如下：
-
-- push 到 [`main`](.github/workflows/docker-image.yml:5) 时自动构建
-- 推送标签 [`v*`](.github/workflows/docker-image.yml:7) 时自动构建并打标签
-- Pull Request 到 [`main`](.github/workflows/docker-image.yml:10) 时执行构建校验，但不会推送镜像
-- 支持手动触发 [`workflow_dispatch`](.github/workflows/docker-image.yml:11)
-- 非 PR 场景下会自动推送镜像到 GitHub Container Registry
-
-### Registry 与权限说明
-
-工作流当前发布到固定镜像地址：
-
-- [`ghcr.io/notpeppa/simplecms:latest`](README.md)
-
-工作流的镜像仓库基础名配置在 [`IMAGE_NAME`](.github/workflows/docker-image.yml:16)，最终推送地址前缀为 [`ghcr.io/notpeppa/simplecms`](.github/workflows/docker-image.yml:36)。
-
-使用的是 GitHub 自带凭据：
-
-- [`github.actor`](.github/workflows/docker-image.yml:31)
-- [`secrets.GITHUB_TOKEN`](.github/workflows/docker-image.yml:32)
-
-工作流会自动生成以下常见标签：
-
-- 分支标签
-- Git Tag 标签
-- [`latest`](.github/workflows/docker-image.yml:40)（默认分支）
-- Commit SHA 标签
-
 ## 目录说明
 
 - [`src/`](src)：应用源码

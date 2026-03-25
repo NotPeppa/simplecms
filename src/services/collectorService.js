@@ -238,6 +238,30 @@ function attachPlayFromMetadata(playUrl, playFrom) {
   return merged.join('$$$');
 }
 
+function buildPlayUrlFromDl(value) {
+  if (!value || typeof value !== 'object') {
+    return '';
+  }
+
+  const ddList = toArray(value.dd);
+  if (!ddList.length) {
+    return '';
+  }
+
+  const groups = ddList
+    .map((dd) => {
+      const text = unwrapMaybeObject(dd?.['#text'] ?? dd?.text ?? dd);
+      if (!text) {
+        return '';
+      }
+      const flag = normalizeFromCode(unwrapMaybeObject(dd?.flag || dd?.from || dd?.name || ''));
+      return flag ? `@from=${flag}#${text}` : text;
+    })
+    .filter(Boolean);
+
+  return groups.join('$$$');
+}
+
 function normalizeVideo(item, sourceName) {
   const normalizedItem = item && typeof item === 'object' ? item : {};
   const sourceItemId =
@@ -257,26 +281,41 @@ function normalizeVideo(item, sourceName) {
       ''
   );
 
-  const playFrom = stringifyPlayUrl(normalizedItem.vod_play_from || normalizedItem.play_from || normalizedItem.playfrom || '');
+  const playFrom = stringifyPlayUrl(
+    normalizedItem.vod_play_from ||
+      normalizedItem.play_from ||
+      normalizedItem.playfrom ||
+      normalizedItem.from ||
+      ''
+  );
   playUrl = attachPlayFromMetadata(playUrl, playFrom);
+
+  if (!playUrl) {
+    playUrl = buildPlayUrlFromDl(normalizedItem.dl);
+  }
 
   if (!sourceItemId || !playUrl) {
     return null;
   }
 
-  const categoryName = unwrapMaybeObject(normalizedItem.type_name) || unwrapMaybeObject(normalizedItem.vod_class) || '未分类';
+  const categoryName =
+    unwrapMaybeObject(normalizedItem.type_name) ||
+    unwrapMaybeObject(normalizedItem.vod_class) ||
+    unwrapMaybeObject(normalizedItem.type) ||
+    '未分类';
 
   return {
     sourceId: `${sourceName}:${sourceItemId}`,
     title: unwrapMaybeObject(normalizedItem.vod_name) || unwrapMaybeObject(normalizedItem.name) || '未命名视频',
     cover: unwrapMaybeObject(normalizedItem.vod_pic) || unwrapMaybeObject(normalizedItem.pic) || '',
-    description: unwrapMaybeObject(normalizedItem.vod_content) || unwrapMaybeObject(normalizedItem.content) || '',
+    description: unwrapMaybeObject(normalizedItem.vod_content) || unwrapMaybeObject(normalizedItem.content) || unwrapMaybeObject(normalizedItem.des) || '',
     playUrl,
     sourceName,
     updatedAtSource:
       unwrapMaybeObject(normalizedItem.vod_time) ||
       unwrapMaybeObject(normalizedItem.update_time) ||
       unwrapMaybeObject(normalizedItem.last_update) ||
+      unwrapMaybeObject(normalizedItem.last) ||
       '',
     categoryName
   };
@@ -292,7 +331,7 @@ async function upsertVideoByRaw(source, raw) {
   const fallbackTitle = unwrapMaybeObject(raw?.vod_name) || unwrapMaybeObject(raw?.name) || '未命名视频';
   const normalized = normalizeVideo(raw, source.name);
   if (!normalized) {
-    return { status: 'skipped', title: fallbackTitle };
+    return { status: 'skipped', title: fallbackTitle, reason: 'missing_source_id_or_play_url' };
   }
 
   const category = await getOrCreateCategory(normalized.categoryName);
@@ -313,6 +352,19 @@ async function upsertVideoByRaw(source, raw) {
     return { status: 'imported', title: normalized.title };
   }
 
+  const hasChanged =
+    existing.title !== payload.title ||
+    String(existing.cover || '') !== String(payload.cover || '') ||
+    String(existing.description || '') !== String(payload.description || '') ||
+    String(existing.playUrl || '') !== String(payload.playUrl || '') ||
+    String(existing.sourceName || '') !== String(payload.sourceName || '') ||
+    String(existing.updatedAtSource || '') !== String(payload.updatedAtSource || '') ||
+    Number(existing.categoryId || 0) !== Number(payload.categoryId || 0);
+
+  if (!hasChanged) {
+    return { status: 'skipped', title: normalized.title, reason: 'unchanged' };
+  }
+
   await existing.update(payload);
   return { status: 'updated', title: normalized.title };
 }
@@ -329,13 +381,13 @@ async function importFromRawList(source, rawList) {
     const result = await upsertVideoByRaw(source, raw);
     if (result.status === 'imported') {
       stats.importedCount += 1;
-      stats.itemResults.push({ title: result.title || '未命名视频', status: 'imported' });
+      stats.itemResults.push({ title: result.title || '未命名视频', status: 'imported', reason: result.reason || '' });
     } else if (result.status === 'updated') {
       stats.updatedCount += 1;
-      stats.itemResults.push({ title: result.title || '未命名视频', status: 'updated' });
+      stats.itemResults.push({ title: result.title || '未命名视频', status: 'updated', reason: result.reason || '' });
     } else {
       stats.skippedCount += 1;
-      stats.itemResults.push({ title: result.title || '未命名视频', status: 'skipped' });
+      stats.itemResults.push({ title: result.title || '未命名视频', status: 'skipped', reason: result.reason || '' });
     }
   }
 
