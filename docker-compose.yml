@@ -1,10 +1,7 @@
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: simplecms:local
-    container_name: simplecms
+    image: ghcr.io/notpeppa/simplecms:latest
+    container_name: simplecms-app
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -31,8 +28,8 @@ services:
       MYSQL_USER: simplecms
       MYSQL_PASSWORD: simplecms123
       MYSQL_ROOT_PASSWORD: root123456
-    ports:
-      - "3306:3306"
+    expose:
+      - "3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
