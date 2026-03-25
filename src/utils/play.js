@@ -255,6 +255,7 @@ function parseOneEpisode(segment, index, groupIndex, fromCode, options = {}) {
   const sourceParser = pickSourceParser(options, epFromCode);
   const alias = pickAlias(options.sourceName, rawUrl);
   const parserResolved = buildParsedUrl(rawUrl, alias, sourceParser);
+  const allowGlobalAliasFallback = options.allowGlobalAliasFallback !== false;
   let resolved = { url: rawUrl, playVia: 'direct', forcedType: '', target: '' };
 
   if (sourceParser) {
@@ -262,7 +263,7 @@ function parseOneEpisode(segment, index, groupIndex, fromCode, options = {}) {
     if (resolved.forcedType) {
       type = resolved.forcedType;
     }
-  } else if (type === 'iframe') {
+  } else if (type === 'iframe' && allowGlobalAliasFallback) {
     resolved = parserResolved;
   }
 

@@ -134,6 +134,36 @@ function pickList(payload) {
   return [];
 }
 
+function extractTotalPages(payload) {
+  const candidates = [
+    payload?.pagecount,
+    payload?.page_count,
+    payload?.totalpage,
+    payload?.total_page,
+    payload?.page?.count,
+    payload?.page?.total,
+    payload?.data?.pagecount,
+    payload?.data?.page_count,
+    payload?.data?.totalpage,
+    payload?.data?.total_page,
+    payload?.data?.page?.count,
+    payload?.data?.page?.total,
+    payload?.rss?.list?.pagecount,
+    payload?.rss?.list?.page,
+    payload?.rss?.pagecount,
+    payload?.rss?.page
+  ];
+
+  for (const candidate of candidates) {
+    const value = Number(unwrapMaybeObject(candidate));
+    if (Number.isFinite(value) && value > 0) {
+      return Math.floor(value);
+    }
+  }
+
+  return 0;
+}
+
 function stringifyPlayUrl(value) {
   if (!value) {
     return '';
@@ -553,6 +583,12 @@ async function collectFromSource(source, options = {}) {
   let lastFetchedPage = startPage - 1;
   let stopReason = 'completed';
   let stopped = false;
+  const emptyPageThreshold = collectMode === 'all' && typeId > 0 ? 5 : 1;
+  let emptyPageStreak = 0;
+  const categoryParamCandidates = typeId > 0 ? ['t', 'type', 'tid'] : [];
+  let activeCategoryParam = categoryParamCandidates[0] || '';
+  let categoryParamLocked = false;
+  let totalPages = 0;
 
   try {
     for (let page = startPage; page <= pageLimit; page += 1) {
@@ -563,24 +599,83 @@ async function collectFromSource(source, options = {}) {
         break;
       }
 
-      const url = buildDetailUrl(source.apiUrl, {
-        pg: page,
-        t: typeId > 0 ? typeId : undefined,
-        h: hours > 0 ? hours : undefined
+      const categoryParamsToTry =
+        typeId > 0
+          ? categoryParamLocked
+            ? [activeCategoryParam]
+            : [activeCategoryParam, ...categoryParamCandidates.filter((key) => key !== activeCategoryParam)]
+          : [''];
+
+      emitProgress({
+        type: 'page_start',
+        page,
+        mode: collectMode,
+        categoryParam: activeCategoryParam || '-',
+        totalPages
       });
 
-      emitProgress({ type: 'page_start', page, url, mode: collectMode });
+      let url = '';
+      let list = [];
+      for (const categoryParam of categoryParamsToTry) {
+        const query = {
+          pg: page,
+          h: hours > 0 ? hours : undefined
+        };
+        if (typeId > 0 && categoryParam) {
+          query[categoryParam] = typeId;
+        }
 
-      const response = await axios.get(url, { timeout: 15000 });
-      const payload = parseApiPayload(response.data);
-      const list = pickList(payload);
+        const attemptUrl = buildDetailUrl(source.apiUrl, query);
+        const response = await axios.get(attemptUrl, { timeout: 15000 });
+        const payload = parseApiPayload(response.data);
+        const attemptList = pickList(payload);
+        const detectedTotalPages = extractTotalPages(payload);
+        if (detectedTotalPages > 0) {
+          totalPages = Math.max(totalPages, detectedTotalPages);
+        }
+
+        url = attemptUrl;
+        if (attemptList.length) {
+          list = attemptList;
+          if (typeId > 0 && categoryParam && activeCategoryParam !== categoryParam) {
+            emitProgress({
+              type: 'category_param_switch',
+              page,
+              from: activeCategoryParam,
+              to: categoryParam
+            });
+          }
+          if (typeId > 0 && categoryParam) {
+            activeCategoryParam = categoryParam;
+            categoryParamLocked = true;
+          }
+          break;
+        }
+      }
+
       lastFetchedPage = page;
 
       if (!list.length) {
-        stopReason = 'empty_page';
-        emitProgress({ type: 'page_empty', page, mode: collectMode });
+        emptyPageStreak += 1;
+        const shouldStopByEmpty = emptyPageStreak >= emptyPageThreshold;
+        emitProgress({
+          type: 'page_empty',
+          page,
+          mode: collectMode,
+          emptyPageStreak,
+          emptyPageThreshold,
+          willStop: shouldStopByEmpty,
+          categoryParam: activeCategoryParam || '-',
+          totalPages
+        });
+        if (!shouldStopByEmpty && collectMode === 'all') {
+          continue;
+        }
+        stopReason = emptyPageThreshold > 1 ? 'empty_page_threshold' : 'empty_page';
         break;
       }
+
+      emptyPageStreak = 0;
 
       const onePageStats = await importFromRawList(source, list);
       stats.importedCount += onePageStats.importedCount;
@@ -598,7 +693,9 @@ async function collectFromSource(source, options = {}) {
         pageStats: onePageStats,
         totalStats: { ...stats },
         sampleTitles,
-        itemResults
+        itemResults,
+        categoryParam: activeCategoryParam || '-',
+        totalPages
       });
 
       if (collectMode === 'latest' && page > startPage && onePageStats.importedCount === 0) {
@@ -643,7 +740,8 @@ async function collectFromSource(source, options = {}) {
       totalStats: { ...stats },
       stopReason,
       lastPage: lastFetchedPage > 0 ? lastFetchedPage : startPage,
-      stopped
+      stopped,
+      totalPages
     });
 
     return {
@@ -651,7 +749,8 @@ async function collectFromSource(source, options = {}) {
       ...stats,
       stopReason,
       lastPage: lastFetchedPage > 0 ? lastFetchedPage : startPage,
-      stopped
+      stopped,
+      totalPages
     };
   } catch (error) {
     await CollectorJobLog.create({
@@ -668,14 +767,16 @@ async function collectFromSource(source, options = {}) {
       mode: collectMode,
       totalStats: { ...stats },
       error: error.message,
-      lastPage: lastFetchedPage > 0 ? lastFetchedPage : startPage
+      lastPage: lastFetchedPage > 0 ? lastFetchedPage : startPage,
+      totalPages
     });
 
     return {
       ok: false,
       ...stats,
       error: error.message,
-      lastPage: lastFetchedPage > 0 ? lastFetchedPage : startPage
+      lastPage: lastFetchedPage > 0 ? lastFetchedPage : startPage,
+      totalPages
     };
   }
 }

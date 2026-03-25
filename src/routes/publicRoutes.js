@@ -442,7 +442,8 @@ router.get('/video/:id', async (req, res) => {
   const playItems = parsePlayItems(video.playUrl, {
     sourceName: video.sourceName,
     parserMapByFrom,
-    defaultParser
+    defaultParser,
+    allowGlobalAliasFallback: !source
   });
 
   return res.render('public/video', {

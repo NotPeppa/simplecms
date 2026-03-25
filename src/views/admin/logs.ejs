@@ -3,22 +3,24 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title><%= title %> - simplecms</title>
+    <title><%= title %> - Simplecms</title>
     <link rel="stylesheet" href="/public/style.css" />
   </head>
   <body class="yi-admin-body">
     <div class="yi-admin-shell">
       <aside class="yi-admin-sidebar">
-        <a href="/admin" class="yi-admin-logo">壹影视 CMS</a>
+        <a href="/admin" class="yi-admin-logo">Simple CMS</a>
         <nav class="yi-admin-nav">
           <a href="/admin">仪表盘</a>
           <a href="/admin/sources">采集源管理</a>
           <a href="/admin/collect/search">全站搜索</a>
           <a href="/admin/videos">资源管理</a>
           <a href="/admin/logs" class="is-active">采集日志</a>
-          <a href="/">返回前台</a>
         </nav>
-        <a href="/admin/logout" class="yi-admin-logout">退出登录</a>
+        <div class="yi-admin-side-actions">
+          <a href="/" class="yi-admin-return-front">返回前台</a>
+          <a href="/admin/logout" class="yi-admin-logout">退出登录</a>
+        </div>
       </aside>
 
       <main class="yi-admin-main">

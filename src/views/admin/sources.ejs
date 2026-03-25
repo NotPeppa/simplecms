@@ -3,30 +3,33 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title><%= title %> - simplecms</title>
+    <title><%= title %> - Simplecms</title>
     <link rel="stylesheet" href="/public/style.css" />
   </head>
   <body class="yi-admin-body">
-    <div class="yi-admin-shell">
+    <div class="yi-admin-layout yi-admin-shell">
       <aside class="yi-admin-sidebar">
-        <a href="/admin" class="yi-admin-logo">壹影视 CMS</a>
+        <a href="/admin" class="yi-admin-logo">Simple CMS</a>
         <nav class="yi-admin-nav">
           <a href="/admin">仪表盘</a>
           <a href="/admin/sources" class="is-active">采集源管理</a>
           <a href="/admin/collect/search">全站搜索</a>
           <a href="/admin/videos">资源管理</a>
           <a href="/admin/logs">采集日志</a>
-          <a href="/">返回前台</a>
         </nav>
-        <a href="/admin/logout" class="yi-admin-logout">退出登录</a>
+        <div class="yi-admin-side-actions">
+          <a href="/" class="yi-admin-return-front">返回前台</a>
+          <a href="/admin/logout" class="yi-admin-logout">退出登录</a>
+        </div>
       </aside>
 
       <main class="yi-admin-main">
         <header class="yi-admin-header">
           <div>
             <h1>采集源管理</h1>
-            <p>添加、启停采集源并执行采集任务</p>
+            <p>统一管理采集站、解析配置与采集任务状态</p>
           </div>
+          <span class="yi-admin-chip">sources: <%= sources.length %></span>
         </header>
 
         <% if (result) { %>
@@ -61,76 +64,102 @@
                 </tr>
               </thead>
               <tbody>
-                <% sources.forEach((source) => { %>
+                <% if (sources.length) { %>
+                  <% sources.forEach((source) => { %>
+                    <tr>
+                      <td>#<%= source.id %></td>
+                      <td><%= source.name %></td>
+                      <td><span class="yi-admin-url"><%= source.apiUrl %></span></td>
+                      <td>
+                        <% if (source.enabled) { %>
+                          <span class="tag tag-ok">启用</span>
+                        <% } else { %>
+                          <span class="tag tag-fail">停用</span>
+                        <% } %>
+                      </td>
+                      <td>
+                        <div class="yi-admin-action-row">
+                          <form action="/admin/sources/<%= source.id %>/toggle" method="post">
+                            <button type="submit" class="<%= source.enabled ? 'button-danger' : '' %>"><%= source.enabled ? '停用' : '启用' %></button>
+                          </form>
+                          <button
+                            type="button"
+                            class="yi-open-edit-source-modal"
+                            data-source-id="<%= source.id %>"
+                            data-source-name="<%= source.name %>"
+                            data-source-api-url="<%= source.apiUrl %>"
+                            data-source-note="<%= source.note || '' %>"
+                          >编辑</button>
+                          <a class="yi-admin-link-btn" href="/admin/sources/<%= source.id %>/parsers">解析配置</a>
+                          <form action="/admin/sources/<%= source.id %>/delete" method="post" onsubmit="return window.confirm('确定删除该采集源吗？\n将同时删除该采集源下的所有解析配置。');">
+                            <button type="submit" class="button-danger">删除</button>
+                          </form>
+                          <button
+                            type="button"
+                            class="yi-open-collect-modal"
+                            data-source-id="<%= source.id %>"
+                            data-source-name="<%= source.name %>"
+                          >采集</button>
+                        </div>
+                      </td>
+                    </tr>
+                  <% }) %>
+                <% } else { %>
                   <tr>
-                    <td>#<%= source.id %></td>
-                    <td><%= source.name %></td>
-                    <td><span class="yi-admin-url"><%= source.apiUrl %></span></td>
-                    <td>
-                      <% if (source.enabled) { %>
-                        <span class="tag tag-ok">启用</span>
-                      <% } else { %>
-                        <span class="tag tag-fail">停用</span>
-                      <% } %>
-                    </td>
-                    <td>
-                      <div class="yi-admin-action-row">
-                        <form action="/admin/sources/<%= source.id %>/toggle" method="post">
-                          <button type="submit" class="<%= source.enabled ? 'button-danger' : '' %>"><%= source.enabled ? '停用' : '启用' %></button>
-                        </form>
-                        <button
-                          type="button"
-                          class="yi-open-edit-source-modal"
-                          data-source-id="<%= source.id %>"
-                          data-source-name="<%= source.name %>"
-                          data-source-api-url="<%= source.apiUrl %>"
-                          data-source-note="<%= source.note || '' %>"
-                        >编辑</button>
-                        <a class="yi-admin-link-btn" href="/admin/sources/<%= source.id %>/parsers">解析配置</a>
-                        <form action="/admin/sources/<%= source.id %>/delete" method="post" onsubmit="return window.confirm('确定删除该采集源吗？\n将同时删除该采集源下的所有解析配置。');">
-                          <button type="submit" class="button-danger">删除</button>
-                        </form>
-                        <button
-                          type="button"
-                          class="yi-open-collect-modal"
-                          data-source-id="<%= source.id %>"
-                          data-source-name="<%= source.name %>"
-                        >采集</button>
-                      </div>
-                    </td>
+                    <td colspan="5" class="yi-empty">暂无采集源，请先新增一个采集源。</td>
                   </tr>
-                <% }) %>
+                <% } %>
               </tbody>
             </table>
           </div>
         </section>
 
-        <section id="collect-progress-panel" class="yi-admin-card yi-admin-panel" style="margin-top: 16px" hidden>
-          <div class="yi-admin-panel-title">
-            <h2>采集实时进度</h2>
+        <section id="collect-progress-panel" class="yi-admin-card yi-admin-panel yi-collect-progress" style="margin-top: 16px" hidden>
+          <div class="yi-admin-panel-title yi-collect-progress-head">
+            <div>
+              <h2>采集实时进度</h2>
+              <p id="collect-progress-status-text" class="yi-collect-hint">等待任务启动...</p>
+            </div>
+            <div class="yi-collect-progress-actions">
+              <span id="collect-status-chip" class="yi-admin-chip yi-collect-status-chip">等待中</span>
+              <button id="collect-progress-stop-btn" type="button" class="button-danger" disabled>手动停止</button>
+            </div>
           </div>
-          <div id="collect-progress-summary" class="yi-collect-hint" style="margin-bottom: 8px">等待任务启动...</div>
-          <div style="margin-bottom: 10px">
-            <button id="collect-progress-stop-btn" type="button" class="button-danger" disabled>手动停止</button>
+
+          <div class="yi-collect-progress-meta">
+            <div><span>来源</span><strong id="collect-progress-source">-</strong></div>
+            <div><span>当前页</span><strong id="collect-progress-page">-</strong></div>
+            <div><span>停止原因</span><strong id="collect-progress-stop-reason">-</strong></div>
+            <div><span>更新时间</span><strong id="collect-progress-updated-at">-</strong></div>
           </div>
-          <div class="yi-admin-form-grid" style="grid-template-columns: repeat(3, minmax(120px, 1fr)); margin-bottom: 10px">
-            <div class="yi-admin-card" style="padding: 10px 12px">
+
+          <div id="collect-progress-error" class="yi-collect-progress-error" hidden></div>
+
+          <div class="yi-collect-progress-stats">
+            <div class="yi-collect-stat-card is-imported">
               <strong id="collect-progress-imported">0</strong>
               <div class="yi-collect-hint">新增</div>
             </div>
-            <div class="yi-admin-card" style="padding: 10px 12px">
+            <div class="yi-collect-stat-card is-updated">
               <strong id="collect-progress-updated">0</strong>
               <div class="yi-collect-hint">更新</div>
             </div>
-            <div class="yi-admin-card" style="padding: 10px 12px">
+            <div class="yi-collect-stat-card is-skipped">
               <strong id="collect-progress-skipped">0</strong>
               <div class="yi-collect-hint">跳过</div>
             </div>
+            <div class="yi-collect-stat-card is-total">
+              <strong id="collect-progress-total">0</strong>
+              <div class="yi-collect-hint">累计处理</div>
+            </div>
           </div>
-          <div class="yi-admin-card" style="margin-bottom: 10px; padding: 10px 12px">
-            <div class="yi-collect-hint" style="margin-bottom: 6px">当前批次资源（仅显示当前页）</div>
-            <div id="collect-current-batch-meta" class="yi-collect-hint" style="margin-bottom: 6px">-</div>
-            <div id="collect-current-batch-list" style="max-height: 220px; overflow: auto"></div>
+
+          <div class="yi-collect-batch-card">
+            <div class="yi-collect-batch-head">
+              <div class="yi-collect-hint">当前批次明细（仅显示当前页）</div>
+              <div id="collect-current-batch-meta" class="yi-collect-hint">-</div>
+            </div>
+            <div id="collect-current-batch-list" class="yi-collect-batch-list"></div>
           </div>
         </section>
 
@@ -143,7 +172,7 @@
             </div>
             <form id="collect-modal-form" method="post" class="yi-admin-form-grid">
               <div class="yi-collect-tips">
-                <p><strong>不会填就直接用默认：</strong>选择"采集最新"，其他保持默认，点"确认采集"即可。</p>
+                <p><strong>不会填就直接用默认：</strong>选择“采集最新”，其他保持默认，点“确认采集”即可。</p>
                 <p>字段含义：页码范围=从第几页采到第几页；分类=可下拉选择站点分类；最近小时=只采最近更新的数据。</p>
               </div>
 
@@ -181,7 +210,7 @@
               <input type="hidden" name="pages" value="1" />
               <div class="yi-modal-foot">
                 <button type="button" class="button-danger" data-close-modal="1">取消</button>
-                <button type="submit">确认采集</button>
+                <button type="submit" id="collect-submit-btn">确认采集</button>
               </div>
             </form>
           </div>
@@ -205,6 +234,8 @@
             </form>
           </div>
         </div>
+
+        <div id="admin-toast" class="yi-admin-toast" hidden></div>
       </main>
     </div>
 
@@ -234,18 +265,42 @@
         const openEditButtons = Array.from(document.querySelectorAll('.yi-open-edit-source-modal'));
         const closeEditButtons = Array.from(document.querySelectorAll('[data-close-edit-modal="1"]'));
         const progressPanel = document.getElementById('collect-progress-panel');
-        const progressSummary = document.getElementById('collect-progress-summary');
+        const progressStatusText = document.getElementById('collect-progress-status-text');
+        const progressSource = document.getElementById('collect-progress-source');
+        const progressPage = document.getElementById('collect-progress-page');
+        const progressStopReason = document.getElementById('collect-progress-stop-reason');
+        const progressError = document.getElementById('collect-progress-error');
+        const progressUpdatedAt = document.getElementById('collect-progress-updated-at');
         const progressImported = document.getElementById('collect-progress-imported');
         const progressUpdated = document.getElementById('collect-progress-updated');
         const progressSkipped = document.getElementById('collect-progress-skipped');
+        const progressTotal = document.getElementById('collect-progress-total');
         const progressStopBtn = document.getElementById('collect-progress-stop-btn');
+        const collectStatusChip = document.getElementById('collect-status-chip');
         const currentBatchMeta = document.getElementById('collect-current-batch-meta');
         const currentBatchList = document.getElementById('collect-current-batch-list');
+        const toast = document.getElementById('admin-toast');
         let collectTaskTimer = null;
         let currentCollectTaskId = '';
+        let toastTimer = null;
 
         if (!modal || !title || !form || !openButtons.length) {
           return;
+        }
+
+        function showToast(message, isOk) {
+          if (!toast) {
+            return;
+          }
+          toast.className = 'yi-admin-toast ' + (isOk ? 'is-ok' : 'is-error');
+          toast.textContent = message;
+          toast.hidden = false;
+          if (toastTimer) {
+            clearTimeout(toastTimer);
+          }
+          toastTimer = setTimeout(function () {
+            toast.hidden = true;
+          }, 3200);
         }
 
         async function loadTypes(sourceId) {
@@ -281,6 +336,7 @@
             if (typeTip) {
               typeTip.textContent = '分类读取失败：' + error.message + '（可直接用默认全部分类）';
             }
+            showToast('分类读取失败：' + error.message, false);
           }
         }
 
@@ -351,72 +407,89 @@
           }
 
           progressPanel.hidden = false;
-          if (progressSummary) {
-            const statusMap = { running: '进行中', success: '已完成', failed: '失败' };
-            progressSummary.textContent =
-              '任务：' +
-              (statusMap[task.status] || task.status) +
-              '；来源：' +
-              (task.sourceName || '-') +
-              '；当前页：' +
-              (task.currentPage || '-') +
-              '；停止原因：' +
-              (task.stopReason || '-') +
-              (task.error ? '；错误：' + task.error : '');
+          const statusMap = {
+            running: { label: '进行中', className: 'is-running' },
+            success: { label: '已完成', className: 'is-success' },
+            failed: { label: '失败', className: 'is-failed' }
+          };
+          const statusInfo = statusMap[task.status] || { label: String(task.status || '-'), className: '' };
+
+          if (progressStatusText) {
+            progressStatusText.textContent = '任务状态：' + statusInfo.label;
+          }
+          if (progressSource) {
+            progressSource.textContent = String(task.sourceName || '-');
+          }
+          if (progressPage) {
+            const currentPage = Number(task.currentPage || 0);
+            const totalPages = Number(task.totalPages || 0);
+            progressPage.textContent =
+              (currentPage > 0 ? String(currentPage) : '-') + ' / ' + (totalPages > 0 ? String(totalPages) : '-');
+          }
+          if (progressStopReason) {
+            progressStopReason.textContent = String(task.stopReason || '-');
+          }
+          if (progressUpdatedAt) {
+            progressUpdatedAt.textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+          }
+
+          if (progressError) {
+            progressError.hidden = !task.error;
+            progressError.textContent = task.error ? '错误：' + String(task.error) : '';
+          }
+
+          if (collectStatusChip) {
+            collectStatusChip.textContent = statusInfo.label;
+            collectStatusChip.className = 'yi-admin-chip yi-collect-status-chip ' + statusInfo.className;
           }
 
           if (progressStopBtn) {
             progressStopBtn.disabled = task.status !== 'running' || !currentCollectTaskId;
           }
 
+          const imported = Number(task.importedCount || 0);
+          const updated = Number(task.updatedCount || 0);
+          const skipped = Number(task.skippedCount || 0);
+          const total = imported + updated + skipped;
+
           if (progressImported) {
-            progressImported.textContent = String(task.importedCount || 0);
+            progressImported.textContent = String(imported);
           }
           if (progressUpdated) {
-            progressUpdated.textContent = String(task.updatedCount || 0);
+            progressUpdated.textContent = String(updated);
           }
           if (progressSkipped) {
-            progressSkipped.textContent = String(task.skippedCount || 0);
+            progressSkipped.textContent = String(skipped);
+          }
+          if (progressTotal) {
+            progressTotal.textContent = String(total);
           }
 
           if (currentBatchMeta) {
-            currentBatchMeta.textContent =
-              '页码：' +
-              String(task.currentBatchPage || '-') +
-              '；本页抓取：' +
-              String(task.currentBatchFetchedCount || 0) +
-              ' 条';
+            currentBatchMeta.textContent = '页码：' + String(task.currentBatchPage || '-') + ' · 本页抓取：' + String(task.currentBatchFetchedCount || 0) + ' 条';
           }
 
           if (currentBatchList) {
             const items = Array.isArray(task.currentBatchItems) ? task.currentBatchItems : [];
-            const statusMap = {
-              imported: { label: '新增', color: '#22c55e' },
-              updated: { label: '更新', color: '#38bdf8' },
-              skipped: { label: '跳过', color: '#f59e0b' }
+            const itemStatusMap = {
+              imported: { label: '新增', className: 'is-imported' },
+              updated: { label: '更新', className: 'is-updated' },
+              skipped: { label: '跳过', className: 'is-skipped' }
             };
             currentBatchList.innerHTML = items.length
-              ? '<div>' +
+              ? '<ul class="yi-collect-item-list">' +
                 items
                   .map(function (item, index) {
-                    const info = statusMap[item.status] || { label: String(item.status || '-'), color: '#94a3b8' };
+                    const info = itemStatusMap[item.status] || { label: String(item.status || '-'), className: '' };
                     return (
-                      '<div style="display:flex; gap:8px; align-items:flex-start; padding: 5px 0; border-bottom: 1px dashed rgba(255,255,255,.08)">' +
-                      '<span style="display:inline-block; min-width:46px; font-size:12px; color:#0b1220; background:' +
-                      info.color +
-                      '; border-radius:999px; text-align:center; padding:1px 8px">' +
-                      info.label +
-                      '</span>' +
-                      '<span style="color:#e2e8f0">' +
-                      String(index + 1) +
-                      '. ' +
-                      String(item.title || '未命名视频') +
-                      '</span>' +
-                      '</div>'
+                      '<li class="yi-collect-item-row">' +
+                      '<span class="yi-collect-item-badge ' + info.className + '">' + info.label + '</span>' +
+                      '<span class="yi-collect-item-title">' + String(index + 1) + '. ' + String(item.title || '未命名视频') + '</span>' +
+                      '</li>'
                     );
                   })
                   .join('') +
-                '</div>'
+                '</ul>'
               : '<div class="yi-collect-hint">当前页暂无可展示资源名</div>';
           }
         }
@@ -447,13 +520,15 @@
             renderCollectTask(data.task);
             if (data.task.status === 'success' || data.task.status === 'failed') {
               stopCollectTaskPolling();
+              showToast(data.task.status === 'success' ? '采集任务已完成' : '采集任务结束（失败）', data.task.status === 'success');
             }
           } catch (error) {
             stopCollectTaskPolling();
-            if (progressSummary) {
+            if (progressStatusText) {
               progressPanel.hidden = false;
-              progressSummary.textContent = '任务状态读取失败：' + error.message;
+              progressStatusText.textContent = '任务状态读取失败：' + error.message;
             }
+            showToast('任务状态读取失败：' + error.message, false);
           }
         }
 
@@ -477,11 +552,12 @@
             if (!data.ok) {
               throw new Error(data.message || '停止失败');
             }
-            if (progressSummary) {
-              progressSummary.textContent = '已发送停止请求，正在等待任务安全结束...';
+            if (progressStatusText) {
+              progressStatusText.textContent = '已发送停止请求，正在等待任务安全结束...';
             }
+            showToast('已发送停止请求', true);
           } catch (error) {
-            window.alert('停止任务失败：' + error.message);
+            showToast('停止任务失败：' + error.message, false);
           }
         }
 
@@ -502,10 +578,12 @@
 
         form.addEventListener('submit', async function (event) {
           event.preventDefault();
-          const submitBtn = form.querySelector('button[type="submit"]');
+          const submitBtn = document.getElementById('collect-submit-btn');
           if (submitBtn) {
             submitBtn.disabled = true;
+            submitBtn.textContent = '启动中...';
           }
+          form.classList.add('yi-admin-busy');
 
           try {
             const body = new URLSearchParams();
@@ -534,19 +612,22 @@
             if (progressPanel) {
               progressPanel.hidden = false;
             }
-            if (progressSummary) {
-              progressSummary.textContent = '采集任务已启动，正在获取实时进度...';
+            if (progressStatusText) {
+              progressStatusText.textContent = '采集任务已启动，正在获取实时进度...';
             }
+            showToast('采集任务已启动', true);
             await pollCollectTask(currentCollectTaskId);
             collectTaskTimer = setInterval(function () {
               pollCollectTask(currentCollectTaskId);
             }, 2500);
           } catch (error) {
-            window.alert('采集任务启动失败：' + error.message);
+            showToast('采集任务启动失败：' + error.message, false);
           } finally {
             if (submitBtn) {
               submitBtn.disabled = false;
+              submitBtn.textContent = '确认采集';
             }
+            form.classList.remove('yi-admin-busy');
           }
         });
 

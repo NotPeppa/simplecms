@@ -3,30 +3,33 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title><%= title %> - simplecms</title>
+    <title><%= title %> - Simplecms</title>
     <link rel="stylesheet" href="/public/style.css" />
   </head>
   <body class="yi-admin-body">
-    <div class="yi-admin-shell">
+    <div class="yi-admin-layout yi-admin-shell">
       <aside class="yi-admin-sidebar">
-        <a href="/admin" class="yi-admin-logo">壹影视 CMS</a>
+        <a href="/admin" class="yi-admin-logo">Simple CMS</a>
         <nav class="yi-admin-nav">
           <a href="/admin">仪表盘</a>
           <a href="/admin/sources">采集源管理</a>
           <a href="/admin/collect/search" class="is-active">全站搜索</a>
           <a href="/admin/videos">资源管理</a>
           <a href="/admin/logs">采集日志</a>
-          <a href="/">返回前台</a>
         </nav>
-        <a href="/admin/logout" class="yi-admin-logout">退出登录</a>
+        <div class="yi-admin-side-actions">
+          <a href="/" class="yi-admin-return-front">返回前台</a>
+          <a href="/admin/logout" class="yi-admin-logout">退出登录</a>
+        </div>
       </aside>
 
       <main class="yi-admin-main">
         <header class="yi-admin-header">
           <div>
             <h1>全站搜索</h1>
-            <p>在所有启用采集站搜索资源，勾选后统一采集（勾选 1 条即单采）</p>
+            <p>跨采集站搜索资源并批量采集，支持可视化勾选反馈</p>
           </div>
+          <span class="yi-admin-chip">rows: <%= rows.length %></span>
         </header>
 
         <% if (result) { %>
@@ -68,51 +71,57 @@
             <input type="hidden" name="page" value="<%= query.page || 1 %>" />
             <input type="hidden" name="sourceFilter" value="<%= query.sourceId || 0 %>" />
             <input type="hidden" id="items-json" name="itemsJson" value="[]" />
-            <div style="margin-bottom:10px; display:flex; gap:8px; align-items:center;">
+            <div style="margin-bottom:10px; display:flex; gap:8px; align-items:center; flex-wrap: wrap;">
               <button type="button" id="check-all-btn">全选</button>
               <button type="button" id="uncheck-all-btn" class="button-danger">清空</button>
               <button type="button" id="check-page-btn">反选</button>
-              <button type="submit">采集</button>
+              <button type="submit" id="batch-submit-btn">采集</button>
               <span id="checked-count" class="yi-collect-hint">已选 0 条</span>
             </div>
-          <div class="table-wrap yi-admin-table-wrap">
-            <table class="yi-admin-table">
-              <thead>
-                <tr>
-                  <th>勾选</th>
-                  <th>采集站</th>
-                  <th>资源ID</th>
-                  <th>标题</th>
-                  <th>分类</th>
-                  <th>更新时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                <% rows.forEach((row) => { %>
+            <div class="table-wrap yi-admin-table-wrap">
+              <table class="yi-admin-table">
+                <thead>
                   <tr>
-                    <td>
-                      <input
-                        type="checkbox"
-                        class="collect-item"
-                        name="items"
-                        value="<%= row.sourceDbId %>|<%= row.sourceItemId %>"
-                        data-source-id="<%= row.sourceDbId %>"
-                        data-source-name="<%= row.sourceName %>"
-                        data-source-api-url="<%= row.sourceApiUrl || '' %>"
-                        data-source-item-id="<%= row.sourceItemId %>"
-                        data-title="<%= row.title %>"
-                      />
-                    </td>
-                    <td><%= row.sourceName %></td>
-                    <td><%= row.sourceItemId %></td>
-                    <td><%= row.title %></td>
-                    <td><%= row.typeName %></td>
-                    <td><%= row.updatedAtSource || '-' %></td>
+                    <th>勾选</th>
+                    <th>采集站</th>
+                    <th>资源ID</th>
+                    <th>标题</th>
+                    <th>分类</th>
+                    <th>更新时间</th>
                   </tr>
-                <% }) %>
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  <% if (rows.length) { %>
+                    <% rows.forEach((row) => { %>
+                      <tr>
+                        <td>
+                          <input
+                            type="checkbox"
+                            class="collect-item"
+                            name="items"
+                            value="<%= row.sourceDbId %>|<%= row.sourceItemId %>"
+                            data-source-id="<%= row.sourceDbId %>"
+                            data-source-name="<%= row.sourceName %>"
+                            data-source-api-url="<%= row.sourceApiUrl || '' %>"
+                            data-source-item-id="<%= row.sourceItemId %>"
+                            data-title="<%= row.title %>"
+                          />
+                        </td>
+                        <td><%= row.sourceName %></td>
+                        <td><%= row.sourceItemId %></td>
+                        <td><%= row.title %></td>
+                        <td><%= row.typeName %></td>
+                        <td><%= row.updatedAtSource || '-' %></td>
+                      </tr>
+                    <% }) %>
+                  <% } else { %>
+                    <tr>
+                      <td colspan="6" class="yi-empty">暂无搜索结果，可尝试更换关键词或采集站筛选。</td>
+                    </tr>
+                  <% } %>
+                </tbody>
+              </table>
+            </div>
           </form>
         </section>
 
@@ -130,6 +139,8 @@
             </div>
           </div>
         </div>
+
+        <div id="admin-toast" class="yi-admin-toast" hidden></div>
       </main>
     </div>
 
@@ -140,16 +151,34 @@
         const allBtn = document.getElementById('check-all-btn');
         const noneBtn = document.getElementById('uncheck-all-btn');
         const reverseBtn = document.getElementById('check-page-btn');
+        const submitBtn = document.getElementById('batch-submit-btn');
         const countText = document.getElementById('checked-count');
-        const items = Array.from(document.querySelectorAll('.collect-item'));
         const tableWrap = document.querySelector('.yi-admin-table-wrap');
         const confirmModal = document.getElementById('collect-confirm-modal');
         const confirmText = document.getElementById('collect-confirm-text');
         const confirmOk = document.getElementById('collect-confirm-ok');
         const confirmCancel = document.getElementById('collect-confirm-cancel');
         const confirmClose = document.getElementById('collect-confirm-close');
-        if (!allBtn || !noneBtn || !tableWrap) {
+        const toast = document.getElementById('admin-toast');
+        if (!allBtn || !noneBtn || !tableWrap || !form) {
           return;
+        }
+
+        let toastTimer = null;
+
+        function showToast(message, isOk) {
+          if (!toast) {
+            return;
+          }
+          toast.className = 'yi-admin-toast ' + (isOk ? 'is-ok' : 'is-error');
+          toast.textContent = message;
+          toast.hidden = false;
+          if (toastTimer) {
+            clearTimeout(toastTimer);
+          }
+          toastTimer = setTimeout(function () {
+            toast.hidden = true;
+          }, 2600);
         }
 
         function getItems() {
@@ -158,12 +187,13 @@
 
         function refreshCount() {
           if (!countText) {
-            return;
+            return 0;
           }
           const checked = getItems().filter(function (el) {
             return el.checked;
           }).length;
           countText.textContent = '已选 ' + checked + ' 条';
+          return checked;
         }
 
         function collectSelectedPayload() {
@@ -226,14 +256,14 @@
         if (confirmClose) {
           confirmClose.addEventListener('click', closeConfirmModal);
         }
-        if (confirmOk && form) {
+
+        if (confirmOk) {
           confirmOk.addEventListener('click', async function () {
             const payloadItems = collectSelectedPayload();
             if (!payloadItems.length) {
               closeConfirmModal();
-              if (countText) {
-                countText.textContent = '请先勾选资源';
-              }
+              showToast('请先勾选资源', false);
+              refreshCount();
               return;
             }
 
@@ -243,6 +273,11 @@
 
             confirmOk.disabled = true;
             confirmOk.textContent = '采集中...';
+            if (submitBtn) {
+              submitBtn.disabled = true;
+              submitBtn.textContent = '采集中...';
+            }
+            form.classList.add('yi-admin-busy');
 
             try {
               const formData = new FormData(form);
@@ -274,39 +309,37 @@
               if (countText) {
                 countText.textContent = data.message || (data.ok ? '采集完成' : '采集失败');
               }
+              showToast(data.message || (data.ok ? '采集完成' : '采集失败'), !!data.ok);
               closeConfirmModal();
             } catch (error) {
-              if (countText) {
-                countText.textContent = '采集失败：' + error.message;
-              }
+              showToast('采集失败：' + error.message, false);
             } finally {
               confirmOk.disabled = false;
               confirmOk.textContent = '确认采集';
-            }
-          });
-        }
-
-        if (form) {
-          form.addEventListener('submit', function (event) {
-            event.preventDefault();
-            const checked = getItems().filter(function (el) {
-              return el.checked;
-            }).length;
-            if (!checked) {
-              if (countText) {
-                countText.textContent = '请先勾选资源';
+              if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '采集';
               }
-              return;
-            }
-
-            if (confirmText) {
-              confirmText.textContent = '即将采集 ' + checked + ' 条资源，是否继续？';
-            }
-            if (confirmModal) {
-              confirmModal.hidden = false;
+              form.classList.remove('yi-admin-busy');
             }
           });
         }
+
+        form.addEventListener('submit', function (event) {
+          event.preventDefault();
+          const checked = refreshCount();
+          if (!checked) {
+            showToast('请先勾选资源', false);
+            return;
+          }
+
+          if (confirmText) {
+            confirmText.textContent = '即将采集 ' + checked + ' 条资源，是否继续？';
+          }
+          if (confirmModal) {
+            confirmModal.hidden = false;
+          }
+        });
 
         refreshCount();
       })();

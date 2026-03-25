@@ -29,6 +29,7 @@ function createCollectTask(source, options) {
     currentPage: options.startPage,
     stopReason: '',
     lastPage: options.startPage,
+    totalPages: 0,
     importedCount: 0,
     updatedCount: 0,
     skippedCount: 0,
@@ -71,13 +72,29 @@ function updateCollectTask(task, event) {
     task.skippedCount = Number(event.totalStats.skippedCount || 0);
   }
 
+  if (event.totalPages !== undefined && event.totalPages !== null) {
+    task.totalPages = Math.max(Number(task.totalPages || 0), Number(event.totalPages || 0));
+  }
+
   if (event.type === 'page_start') {
-    task.logs.push(`开始采集第 ${event.page} 页`);
+    const categoryInfo = task.typeId > 0 && event.categoryParam ? `（分类参数: ${event.categoryParam}）` : '';
+    task.logs.push(`开始采集第 ${event.page} 页${categoryInfo}`);
   }
 
   if (event.type === 'page_empty') {
-    task.logs.push(`第 ${event.page} 页无数据，采集结束`);
-    task.stopReason = 'empty_page';
+    const streak = Number(event.emptyPageStreak || 1);
+    const threshold = Number(event.emptyPageThreshold || 1);
+    const categoryInfo = task.typeId > 0 && event.categoryParam ? `（分类参数: ${event.categoryParam}）` : '';
+    if (event.willStop) {
+      task.logs.push(`第 ${event.page} 页无数据${categoryInfo}，连续空页 ${streak}/${threshold}，采集结束`);
+      task.stopReason = threshold > 1 ? 'empty_page_threshold' : 'empty_page';
+    } else {
+      task.logs.push(`第 ${event.page} 页无数据${categoryInfo}，连续空页 ${streak}/${threshold}，继续探测下一页`);
+    }
+  }
+
+  if (event.type === 'category_param_switch') {
+    task.logs.push(`分类参数自动切换：${event.from || '-'} -> ${event.to || '-'}（第 ${event.page} 页）`);
   }
 
   if (event.type === 'page_done') {
@@ -147,6 +164,7 @@ function runCollectTask(task, source, options) {
       task.skippedCount = Number(result.skippedCount || 0);
       task.lastPage = Number(result.lastPage || task.lastPage || task.startPage);
       task.stopReason = String(result.stopReason || task.stopReason || 'completed');
+      task.totalPages = Math.max(Number(task.totalPages || 0), Number(result.totalPages || 0));
       task.error = result.ok ? '' : String(result.error || '未知错误');
       task.finishedAt = new Date().toISOString();
       task.logs.push(
@@ -444,23 +462,49 @@ router.get('/logout', (req, res) => {
 });
 
 router.get('/', ensureAdmin, async (req, res) => {
-  const [sourceCount, videoCount, categoryCount, latestLogs] = await Promise.all([
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const [sourceCount, enabledSourceCount, videoCount, categoryCount, todayLogs, recentVideos] = await Promise.all([
     CollectorSource.count(),
+    CollectorSource.count({ where: { enabled: true } }),
     Video.count(),
     Category.count(),
     CollectorJobLog.findAll({
+      where: {
+        createdAt: { [Op.gte]: startOfDay }
+      },
       order: [['createdAt', 'DESC']],
-      limit: 20
+      limit: 80
+    }),
+    Video.findAll({
+      order: [['updatedAt', 'DESC']],
+      limit: 8,
+      attributes: ['id', 'title', 'sourceName', 'updatedAt']
     })
   ]);
+
+  const todaySuccessCount = todayLogs.filter((item) => item.status === 'success').length;
+  const todayFailedCount = todayLogs.filter((item) => item.status !== 'success').length;
+  const runningTaskCount = Array.from(collectTaskStore.values()).filter((task) => task.status === 'running').length;
+
+  const todayImported = todayLogs.reduce((sum, item) => sum + Number(item.importedCount || 0), 0);
+  const todayUpdated = todayLogs.reduce((sum, item) => sum + Number(item.updatedCount || 0), 0);
 
   res.render('admin/dashboard', {
     title: '采集管理',
     admin: req.session.admin,
     sourceCount,
+    enabledSourceCount,
     videoCount,
     categoryCount,
-    latestLogs
+    runningTaskCount,
+    todayLogsCount: todayLogs.length,
+    todaySuccessCount,
+    todayFailedCount,
+    todayImported,
+    todayUpdated,
+    recentVideos
   });
 });
 

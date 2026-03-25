@@ -3,71 +3,128 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title><%= title %> - simplecms</title>
+    <title><%= title %> - Simplecms</title>
     <link rel="stylesheet" href="/public/style.css" />
   </head>
   <body class="yi-admin-body">
-    <div class="yi-admin-shell">
+    <div class="yi-admin-layout yi-admin-shell">
       <aside class="yi-admin-sidebar">
-        <a href="/admin" class="yi-admin-logo">壹影视 CMS</a>
+        <a href="/admin" class="yi-admin-logo">Simple CMS</a>
         <nav class="yi-admin-nav">
           <a href="/admin" class="is-active">仪表盘</a>
           <a href="/admin/sources">采集源管理</a>
           <a href="/admin/collect/search">全站搜索</a>
           <a href="/admin/videos">资源管理</a>
           <a href="/admin/logs">采集日志</a>
-          <a href="/">返回前台</a>
         </nav>
-        <a href="/admin/logout" class="yi-admin-logout">退出登录</a>
+        <div class="yi-admin-side-actions">
+          <a href="/" class="yi-admin-return-front">返回前台</a>
+          <a href="/admin/logout" class="yi-admin-logout">退出登录</a>
+        </div>
       </aside>
 
       <main class="yi-admin-main">
         <header class="yi-admin-header">
           <div>
-            <h1>采集后台</h1>
-            <p>当前管理员：<%= admin.username %></p>
+            <h1>运营仪表盘</h1>
+            <p>当前管理员：<%= admin.username %> · 聚焦“状态概览 + 今日产出”，详细流水请前往采集日志页</p>
           </div>
+          <span class="yi-admin-chip">operations overview</span>
         </header>
 
         <section class="yi-admin-stats" style="margin-bottom: 16px">
-          <article class="yi-admin-card yi-admin-stat"><strong><%= sourceCount %></strong><span>采集源</span></article>
-          <article class="yi-admin-card yi-admin-stat"><strong><%= categoryCount %></strong><span>分类数</span></article>
-          <article class="yi-admin-card yi-admin-stat"><strong><%= videoCount %></strong><span>视频数</span></article>
+          <article class="yi-admin-card yi-admin-stat">
+            <strong><%= sourceCount %></strong>
+            <span>采集源总数（启用 <%= enabledSourceCount %>）</span>
+          </article>
+          <article class="yi-admin-card yi-admin-stat">
+            <strong><%= runningTaskCount %></strong>
+            <span>运行中任务</span>
+          </article>
+          <article class="yi-admin-card yi-admin-stat">
+            <strong><%= videoCount %></strong>
+            <span>累计视频（分类 <%= categoryCount %>）</span>
+          </article>
+        </section>
+
+        <section class="yi-admin-grid-2" style="margin-bottom: 16px">
+          <article class="yi-admin-card yi-admin-panel">
+            <div class="yi-admin-panel-title">
+              <h2>今日采集简报</h2>
+              <span class="yi-admin-chip">today</span>
+            </div>
+            <div class="yi-admin-kpi-grid">
+              <div class="yi-admin-kpi-item">
+                <strong><%= todayLogsCount %></strong>
+                <span>任务次数</span>
+              </div>
+              <div class="yi-admin-kpi-item">
+                <strong><%= todaySuccessCount %></strong>
+                <span>成功任务</span>
+              </div>
+              <div class="yi-admin-kpi-item">
+                <strong><%= todayFailedCount %></strong>
+                <span>失败任务</span>
+              </div>
+              <div class="yi-admin-kpi-item">
+                <strong><%= todayImported %></strong>
+                <span>今日新增</span>
+              </div>
+              <div class="yi-admin-kpi-item">
+                <strong><%= todayUpdated %></strong>
+                <span>今日更新</span>
+              </div>
+              <div class="yi-admin-kpi-item">
+                <strong><%= todayLogsCount ? Math.round((todaySuccessCount / todayLogsCount) * 100) : 0 %>%</strong>
+                <span>成功率</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="yi-admin-card yi-admin-panel">
+            <div class="yi-admin-panel-title">
+              <h2>快速入口</h2>
+            </div>
+            <div class="yi-admin-quick-links">
+              <a class="yi-admin-link-btn" href="/admin/sources">管理采集源</a>
+              <a class="yi-admin-link-btn" href="/admin/collect/search">执行全站搜索采集</a>
+              <a class="yi-admin-link-btn" href="/admin/videos">审核资源库</a>
+              <a class="yi-admin-link-btn" href="/admin/logs">查看采集日志</a>
+            </div>
+            <p class="yi-collect-hint" style="margin-top: 10px">仪表盘不再展示日志明细，避免与采集日志页重复。</p>
+          </article>
         </section>
 
         <section class="yi-admin-card yi-admin-panel">
           <div class="yi-admin-panel-title">
-            <h2>最近采集日志</h2>
+            <h2>最近更新的视频</h2>
+            <a class="yi-admin-link-btn" href="/admin/videos">进入资源管理</a>
           </div>
           <div class="table-wrap yi-admin-table-wrap">
             <table class="yi-admin-table">
               <thead>
                 <tr>
                   <th>ID</th>
+                  <th>标题</th>
                   <th>来源</th>
-                  <th>状态</th>
-                  <th>新增/更新/跳过</th>
-                  <th>详情</th>
-                  <th>时间</th>
+                  <th>更新时间</th>
                 </tr>
               </thead>
               <tbody>
-                <% latestLogs.forEach((log) => { %>
+                <% if (recentVideos.length) { %>
+                  <% recentVideos.forEach((video) => { %>
+                    <tr>
+                      <td>#<%= video.id %></td>
+                      <td><%= video.title %></td>
+                      <td><%= video.sourceName || '-' %></td>
+                      <td><%= video.updatedAt ? new Date(video.updatedAt).toLocaleString('zh-CN') : '-' %></td>
+                    </tr>
+                  <% }) %>
+                <% } else { %>
                   <tr>
-                    <td>#<%= log.id %></td>
-                    <td><%= log.sourceName %></td>
-                    <td>
-                      <% if (log.status === 'success') { %>
-                        <span class="tag tag-ok">成功</span>
-                      <% } else { %>
-                        <span class="tag tag-fail">失败</span>
-                      <% } %>
-                    </td>
-                    <td><%= log.importedCount %>/<%= log.updatedCount %>/<%= log.skippedCount %></td>
-                    <td><%= log.detail || '' %></td>
-                    <td><%= log.createdAt.toLocaleString('zh-CN') %></td>
+                    <td colspan="4" class="yi-empty">暂无最近更新的视频数据。</td>
                   </tr>
-                <% }) %>
+                <% } %>
               </tbody>
             </table>
           </div>

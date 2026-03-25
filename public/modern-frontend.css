@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
 
 :root {
   --mf-bg: #09090b;
@@ -71,26 +71,35 @@ a {
 }
 
 .mf-logo {
-  font-size: 28px;
+  font-family: 'Sora', 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 29px;
   font-weight: 800;
-  color: var(--mf-text-primary);
-  letter-spacing: -0.5px;
+  letter-spacing: -0.03em;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #e2e8f0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 10px 26px rgba(0, 0, 0, 0.34);
 }
 
 .mf-logo-icon {
-  width: 32px;
-  height: 32px;
-  background: linear-gradient(135deg, #f5b120 0%, #ff8a00 100%);
-  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  background: linear-gradient(145deg, #f5b120 0%, #ff9d00 100%);
+  border-radius: 11px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-family: 'Sora', 'Outfit', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
   color: #fff;
-  box-shadow: 0 0 20px var(--mf-yellow-glow);
+  box-shadow:
+    0 0 24px var(--mf-yellow-glow),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.2);
 }
 
 .mf-nav {

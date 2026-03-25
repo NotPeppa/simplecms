@@ -3,28 +3,33 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title><%= title %> - simplecms</title>
+    <title><%= title %> - Simplecms</title>
     <link rel="stylesheet" href="/public/style.css" />
   </head>
   <body class="yi-admin-body">
-    <div class="yi-admin-shell">
+    <div class="yi-admin-layout yi-admin-shell">
       <aside class="yi-admin-sidebar">
-        <a href="/admin" class="yi-admin-logo">壹影视 CMS</a>
+        <a href="/admin" class="yi-admin-logo">Simple CMS</a>
         <nav class="yi-admin-nav">
           <a href="/admin">仪表盘</a>
           <a href="/admin/sources" class="is-active">采集源管理</a>
+          <a href="/admin/collect/search">全站搜索</a>
+          <a href="/admin/videos">资源管理</a>
           <a href="/admin/logs">采集日志</a>
-          <a href="/">返回前台</a>
         </nav>
-        <a href="/admin/logout" class="yi-admin-logout">退出登录</a>
+        <div class="yi-admin-side-actions">
+          <a href="/" class="yi-admin-return-front">返回前台</a>
+          <a href="/admin/logout" class="yi-admin-logout">退出登录</a>
+        </div>
       </aside>
 
       <main class="yi-admin-main">
         <header class="yi-admin-header">
           <div>
             <h1>解析配置 - <%= source.name %></h1>
-            <p>为当前采集源配置 from => 解析接口，支持 JSON 导入</p>
+            <p>为当前采集源配置 from => 解析接口，支持 JSON 批量导入</p>
           </div>
+          <span class="yi-admin-chip">parsers: <%= parsers.length %></span>
         </header>
 
         <% if (result) { %>
@@ -58,7 +63,7 @@
             <div class="form-row">
               <textarea id="parser-json-input" name="parserJson" class="yi-admin-textarea" placeholder='可粘贴单条或数组，例如：{"from":"wjm3u8","show":"无尽","parse":"https://jx.wujinkk.com/dplayer/?url="}' required></textarea>
             </div>
-            <button type="submit">导入 JSON</button>
+            <button type="submit" id="parser-import-submit">导入 JSON</button>
           </form>
         </section>
 
@@ -82,33 +87,43 @@
                 </tr>
               </thead>
               <tbody>
-                <% parsers.forEach((parser) => { %>
+                <% if (parsers.length) { %>
+                  <% parsers.forEach((parser) => { %>
+                    <tr>
+                      <td>#<%= parser.id %></td>
+                      <td><%= parser.fromCode %></td>
+                      <td><%= parser.showName || '-' %></td>
+                      <td><%= parser.ps || '1' %></td>
+                      <td><%= parser.target || '-' %></td>
+                      <td><span class="yi-admin-url"><%= parser.parseUrl %></span></td>
+                      <td><%= parser.sort %></td>
+                      <td>
+                        <% if (parser.enabled) { %>
+                          <span class="tag tag-ok">启用</span>
+                        <% } else { %>
+                          <span class="tag tag-fail">停用</span>
+                        <% } %>
+                      </td>
+                      <td>
+                        <div class="yi-admin-action-row">
+                          <form action="/admin/sources/<%= source.id %>/parsers/<%= parser.id %>/toggle" method="post">
+                            <button type="submit" class="<%= parser.enabled ? 'button-danger' : '' %>"><%= parser.enabled ? '停用' : '启用' %></button>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  <% }) %>
+                <% } else { %>
                   <tr>
-                    <td>#<%= parser.id %></td>
-                    <td><%= parser.fromCode %></td>
-                    <td><%= parser.showName || '-' %></td>
-                    <td><%= parser.ps || '1' %></td>
-                    <td><%= parser.target || '-' %></td>
-                    <td><span class="yi-admin-url"><%= parser.parseUrl %></span></td>
-                    <td><%= parser.sort %></td>
-                    <td>
-                      <% if (parser.enabled) { %>
-                        <span class="tag tag-ok">启用</span>
-                      <% } else { %>
-                        <span class="tag tag-fail">停用</span>
-                      <% } %>
-                    </td>
-                    <td>
-                      <form action="/admin/sources/<%= source.id %>/parsers/<%= parser.id %>/toggle" method="post">
-                        <button type="submit" class="<%= parser.enabled ? 'button-danger' : '' %>"><%= parser.enabled ? '停用' : '启用' %></button>
-                      </form>
-                    </td>
+                    <td colspan="9" class="yi-empty">当前采集源还没有解析配置，可先手动新增或 JSON 导入。</td>
                   </tr>
-                <% }) %>
+                <% } %>
               </tbody>
             </table>
           </div>
         </section>
+
+        <div id="admin-toast" class="yi-admin-toast" hidden></div>
       </main>
     </div>
 
@@ -116,8 +131,28 @@
       (function () {
         const fileInput = document.getElementById('parser-json-file');
         const textarea = document.getElementById('parser-json-input');
+        const submitBtn = document.getElementById('parser-import-submit');
+        const toast = document.getElementById('admin-toast');
+
         if (!fileInput || !textarea) {
           return;
+        }
+
+        let toastTimer = null;
+
+        function showToast(message, isOk) {
+          if (!toast) {
+            return;
+          }
+          toast.className = 'yi-admin-toast ' + (isOk ? 'is-ok' : 'is-error');
+          toast.textContent = message;
+          toast.hidden = false;
+          if (toastTimer) {
+            clearTimeout(toastTimer);
+          }
+          toastTimer = setTimeout(function () {
+            toast.hidden = true;
+          }, 2600);
         }
 
         fileInput.addEventListener('change', function () {
@@ -129,9 +164,20 @@
           const reader = new FileReader();
           reader.onload = function () {
             textarea.value = String(reader.result || '').trim();
+            showToast('JSON 文件已载入输入框', true);
+          };
+          reader.onerror = function () {
+            showToast('读取文件失败，请重试', false);
           };
           reader.readAsText(file, 'utf-8');
         });
+
+        if (submitBtn) {
+          submitBtn.form.addEventListener('submit', function () {
+            submitBtn.disabled = true;
+            submitBtn.textContent = '导入中...';
+          });
+        }
       })();
     </script>
   </body>
