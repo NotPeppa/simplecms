@@ -27,7 +27,7 @@ const Video = sequelize.define(
       allowNull: true
     },
     playUrl: {
-      type: DataTypes.TEXT,
+      type: DataTypes.TEXT('long'),
       allowNull: false
     },
     sourceName: {
