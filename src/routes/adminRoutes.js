@@ -1,5 +1,5 @@
 const express = require('express');
-const { Op } = require('sequelize');
+const { Op, fn, col } = require('sequelize');
 const { ensureAdmin } = require('../middleware/auth');
 const { validateAdmin } = require('../services/authService');
 const {
@@ -12,6 +12,7 @@ const { CollectorSource, SourceParser, CollectorJobLog, Video, Category } = requ
 
 const router = express.Router();
 const collectTaskStore = new Map();
+const COLLECT_TASK_KEEP_MS = 1000 * 60 * 60 * 6;
 
 function createCollectTask(source, options) {
   const taskId = `collect_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -147,6 +148,41 @@ function updateCollectTask(task, event) {
   }
 
   trimTaskBuffer(task);
+}
+
+function cleanupCollectTasks() {
+  const now = Date.now();
+  collectTaskStore.forEach((task, key) => {
+    if (!task || task.status === 'running') {
+      return;
+    }
+    const finishedAt = task.finishedAt ? new Date(task.finishedAt).getTime() : 0;
+    const startedAt = task.startedAt ? new Date(task.startedAt).getTime() : 0;
+    const baseTime = Number.isFinite(finishedAt) && finishedAt > 0 ? finishedAt : startedAt;
+    if (!baseTime || now - baseTime > COLLECT_TASK_KEEP_MS) {
+      collectTaskStore.delete(key);
+    }
+  });
+}
+
+function findLatestCollectTask() {
+  cleanupCollectTasks();
+  const list = Array.from(collectTaskStore.values()).filter(Boolean);
+  if (!list.length) {
+    return null;
+  }
+
+  const parseTime = (task) => {
+    const startedAt = task.startedAt ? new Date(task.startedAt).getTime() : 0;
+    if (Number.isFinite(startedAt) && startedAt > 0) {
+      return startedAt;
+    }
+    const idMatch = String(task.id || '').match(/^collect_(\d+)_/);
+    return idMatch ? Number(idMatch[1] || 0) : 0;
+  };
+
+  const sorted = list.slice().sort((a, b) => parseTime(b) - parseTime(a));
+  return sorted.find((item) => item.status === 'running') || sorted[0] || null;
 }
 
 function runCollectTask(task, source, options) {
@@ -465,24 +501,32 @@ router.get('/', ensureAdmin, async (req, res) => {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
-  const [sourceCount, enabledSourceCount, videoCount, categoryCount, todayLogs, recentVideos] = await Promise.all([
-    CollectorSource.count(),
-    CollectorSource.count({ where: { enabled: true } }),
-    Video.count(),
-    Category.count(),
-    CollectorJobLog.findAll({
-      where: {
-        createdAt: { [Op.gte]: startOfDay }
-      },
-      order: [['createdAt', 'DESC']],
-      limit: 80
-    }),
-    Video.findAll({
-      order: [['updatedAt', 'DESC']],
-      limit: 8,
-      attributes: ['id', 'title', 'sourceName', 'updatedAt']
-    })
-  ]);
+  const [sourceCount, enabledSourceCount, videoCount, categoryCount, todayLogs, categoryVideoStatsRaw, uncategorizedCount] =
+    await Promise.all([
+      CollectorSource.count(),
+      CollectorSource.count({ where: { enabled: true } }),
+      Video.count(),
+      Category.count(),
+      CollectorJobLog.findAll({
+        where: {
+          createdAt: { [Op.gte]: startOfDay }
+        },
+        order: [['createdAt', 'DESC']],
+        limit: 80
+      }),
+      Category.findAll({
+        attributes: ['id', 'name', [fn('COUNT', col('videos.id')), 'videoCount']],
+        include: [{ model: Video, as: 'videos', attributes: [], required: false }],
+        group: ['Category.id'],
+        order: [[fn('COUNT', col('videos.id')), 'DESC'], ['id', 'ASC']],
+        subQuery: false
+      }),
+      Video.count({
+        where: {
+          [Op.or]: [{ categoryId: null }, { categoryId: 0 }]
+        }
+      })
+    ]);
 
   const todaySuccessCount = todayLogs.filter((item) => item.status === 'success').length;
   const todayFailedCount = todayLogs.filter((item) => item.status !== 'success').length;
@@ -490,6 +534,22 @@ router.get('/', ensureAdmin, async (req, res) => {
 
   const todayImported = todayLogs.reduce((sum, item) => sum + Number(item.importedCount || 0), 0);
   const todayUpdated = todayLogs.reduce((sum, item) => sum + Number(item.updatedCount || 0), 0);
+
+  const categoryVideoStats = categoryVideoStatsRaw
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      videoCount: Number(item.get('videoCount') || 0)
+    }))
+    .sort((a, b) => b.videoCount - a.videoCount || a.id - b.id);
+
+  if (uncategorizedCount > 0) {
+    categoryVideoStats.push({
+      id: 0,
+      name: '未分类',
+      videoCount: Number(uncategorizedCount || 0)
+    });
+  }
 
   res.render('admin/dashboard', {
     title: '采集管理',
@@ -504,7 +564,7 @@ router.get('/', ensureAdmin, async (req, res) => {
     todayFailedCount,
     todayImported,
     todayUpdated,
-    recentVideos
+    categoryVideoStats
   });
 });
 
@@ -839,7 +899,17 @@ router.post('/collect/:id(\\d+)', ensureAdmin, async (req, res) => {
   });
 });
 
+router.get('/collect/tasks/latest', ensureAdmin, async (req, res) => {
+  const task = findLatestCollectTask();
+  if (!task) {
+    return res.status(404).json({ ok: false, message: '暂无可恢复任务' });
+  }
+
+  return res.json({ ok: true, task });
+});
+
 router.get('/collect/tasks/:taskId', ensureAdmin, async (req, res) => {
+  cleanupCollectTasks();
   const taskId = String(req.params.taskId || '').trim();
   const task = collectTaskStore.get(taskId);
   if (!task) {
@@ -864,6 +934,24 @@ router.post('/collect/tasks/:taskId/stop', ensureAdmin, async (req, res) => {
   task.logs.push('已提交手动停止请求，当前页处理完后停止');
   trimTaskBuffer(task);
   return res.json({ ok: true, message: '停止请求已提交', taskId: task.id });
+});
+
+router.post('/collect/tasks/:taskId/cancel', ensureAdmin, async (req, res) => {
+  const taskId = String(req.params.taskId || '').trim();
+  const task = collectTaskStore.get(taskId);
+  if (!task) {
+    return res.status(404).json({ ok: false, message: '任务不存在或已过期' });
+  }
+
+  if (task.status === 'running') {
+    task.stopRequested = true;
+    task.stopReason = 'manual_cancel';
+    task.logs.push('任务已取消：已请求停止并从恢复列表移除');
+    trimTaskBuffer(task);
+  }
+
+  collectTaskStore.delete(taskId);
+  return res.json({ ok: true, message: '任务已取消' });
 });
 
 router.post('/collect/tasks/:taskId/resume', ensureAdmin, async (req, res) => {

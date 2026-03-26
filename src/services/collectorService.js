@@ -627,10 +627,6 @@ async function collectFromSource(source, options = {}) {
   }
 
   const collectMode = mode;
-  if (collectMode === 'all') {
-    startPage = 1;
-  }
-
   const pageLimit = collectMode === 'all' ? Number.POSITIVE_INFINITY : endPage;
   let lastFetchedPage = startPage - 1;
   let stopReason = 'completed';

@@ -47,89 +47,68 @@
           </article>
         </section>
 
-        <section class="yi-admin-grid-2" style="margin-bottom: 16px">
-          <article class="yi-admin-card yi-admin-panel">
-            <div class="yi-admin-panel-title">
-              <h2>今日采集简报</h2>
-              <span class="yi-admin-chip">today</span>
-            </div>
-            <div class="yi-admin-kpi-grid">
-              <div class="yi-admin-kpi-item">
-                <strong><%= todayLogsCount %></strong>
-                <span>任务次数</span>
-              </div>
-              <div class="yi-admin-kpi-item">
-                <strong><%= todaySuccessCount %></strong>
-                <span>成功任务</span>
-              </div>
-              <div class="yi-admin-kpi-item">
-                <strong><%= todayFailedCount %></strong>
-                <span>失败任务</span>
-              </div>
-              <div class="yi-admin-kpi-item">
-                <strong><%= todayImported %></strong>
-                <span>今日新增</span>
-              </div>
-              <div class="yi-admin-kpi-item">
-                <strong><%= todayUpdated %></strong>
-                <span>今日更新</span>
-              </div>
-              <div class="yi-admin-kpi-item">
-                <strong><%= todayLogsCount ? Math.round((todaySuccessCount / todayLogsCount) * 100) : 0 %>%</strong>
-                <span>成功率</span>
-              </div>
-            </div>
-          </article>
-
-          <article class="yi-admin-card yi-admin-panel">
-            <div class="yi-admin-panel-title">
-              <h2>快速入口</h2>
-            </div>
-            <div class="yi-admin-quick-links">
-              <a class="yi-admin-link-btn" href="/admin/sources">管理采集源</a>
-              <a class="yi-admin-link-btn" href="/admin/collect/search">执行全站搜索采集</a>
-              <a class="yi-admin-link-btn" href="/admin/videos">审核资源库</a>
-              <a class="yi-admin-link-btn" href="/admin/logs">查看采集日志</a>
-            </div>
-            <p class="yi-collect-hint" style="margin-top: 10px">仪表盘不再展示日志明细，避免与采集日志页重复。</p>
-          </article>
-        </section>
-
-        <section class="yi-admin-card yi-admin-panel">
+        <section class="yi-admin-card yi-admin-panel" style="margin-bottom: 16px">
           <div class="yi-admin-panel-title">
-            <h2>最近更新的视频</h2>
-            <a class="yi-admin-link-btn" href="/admin/videos">进入资源管理</a>
+            <h2>今日采集简报</h2>
+            <span class="yi-admin-chip">today</span>
           </div>
-          <div class="table-wrap yi-admin-table-wrap">
-            <table class="yi-admin-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>标题</th>
-                  <th>来源</th>
-                  <th>更新时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                <% if (recentVideos.length) { %>
-                  <% recentVideos.forEach((video) => { %>
-                    <tr>
-                      <td>#<%= video.id %></td>
-                      <td><%= video.title %></td>
-                      <td><%= video.sourceName || '-' %></td>
-                      <td><%= video.updatedAt ? new Date(video.updatedAt).toLocaleString('zh-CN') : '-' %></td>
-                    </tr>
-                  <% }) %>
-                <% } else { %>
-                  <tr>
-                    <td colspan="4" class="yi-empty">暂无最近更新的视频数据。</td>
-                  </tr>
-                <% } %>
-              </tbody>
-            </table>
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap:12px;">
+            <div class="yi-admin-kpi-item"><strong><%= todayLogsCount %></strong><span>任务次数</span></div>
+            <div class="yi-admin-kpi-item"><strong><%= todaySuccessCount %></strong><span>成功任务</span></div>
+            <div class="yi-admin-kpi-item"><strong><%= todayFailedCount %></strong><span>失败任务</span></div>
+            <div class="yi-admin-kpi-item"><strong><%= todayImported %></strong><span>今日新增</span></div>
+            <div class="yi-admin-kpi-item"><strong><%= todayUpdated %></strong><span>今日更新</span></div>
+            <div class="yi-admin-kpi-item">
+              <strong><%= todayLogsCount ? Math.round((todaySuccessCount / todayLogsCount) * 100) : 0 %>%</strong>
+              <span>成功率</span>
+            </div>
           </div>
         </section>
+
+        <section class="yi-admin-card yi-admin-panel" style="margin-bottom: 16px">
+          <div class="yi-admin-panel-title">
+            <h2>分类数据分布</h2>
+            <span class="yi-admin-chip">compact chart</span>
+          </div>
+          <% if (Array.isArray(categoryVideoStats) && categoryVideoStats.length) { %>
+            <% const maxCount = Math.max(...categoryVideoStats.map((item) => Number(item.videoCount || 0)), 1); %>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
+              <% categoryVideoStats.forEach((item) => { %>
+                <% const count = Number(item.videoCount || 0); %>
+                <% const ratio = videoCount > 0 ? Math.round((count / Number(videoCount || 1)) * 100) : 0; %>
+                <% const width = Math.max(4, Math.round((count / maxCount) * 100)); %>
+                <div style="border:1px solid #1f2937; border-radius:10px; padding:10px 12px; background:#0f172a;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px;">
+                    <div style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<%= item.name %>"><%= item.name %></div>
+                    <strong style="flex:0 0 auto;"><%= count %></strong>
+                  </div>
+                  <div style="position:relative; height:10px; border-radius:999px; background:#1f2937; overflow:hidden;">
+                    <span
+                      class="yi-dashboard-bar-fill"
+                      data-width="<%= width %>"
+                      style="position:absolute; left:0; top:0; bottom:0; width:0; background:linear-gradient(90deg,#6366f1,#14b8a6);"
+                    ></span>
+                  </div>
+                  <div class="yi-collect-hint" style="margin-top:6px; text-align:right;">占比 <%= ratio %>%</div>
+                </div>
+              <% }) %>
+            </div>
+          <% } else { %>
+            <div class="yi-empty">暂无分类数据。</div>
+          <% } %>
+        </section>
+
       </main>
     </div>
+
+    <script>
+      (function () {
+        const bars = document.querySelectorAll('.yi-dashboard-bar-fill');
+        bars.forEach((bar) => {
+          const width = Math.max(0, Math.min(100, Number(bar.getAttribute('data-width') || 0)));
+          bar.style.width = width + '%';
+        });
+      })();
+    </script>
   </body>
 </html>

@@ -122,8 +122,9 @@
             </div>
             <div class="yi-collect-progress-actions">
               <span id="collect-status-chip" class="yi-admin-chip yi-collect-status-chip">等待中</span>
-              <button id="collect-progress-resume-btn" type="button" class="button-primary" disabled>继续采集</button>
-              <button id="collect-progress-stop-btn" type="button" class="button-danger" disabled>手动停止</button>
+              <button id="collect-progress-stop-btn" type="button" class="button-danger" disabled>暂停</button>
+              <button id="collect-progress-resume-btn" type="button" class="button-primary" disabled>继续</button>
+              <button id="collect-progress-cancel-btn" type="button" class="button-danger" disabled>取消</button>
             </div>
           </div>
 
@@ -236,6 +237,23 @@
           </div>
         </div>
 
+        <div id="collect-action-confirm-modal" class="yi-modal" hidden>
+          <div class="yi-modal-backdrop" data-close-confirm-modal="1"></div>
+          <div class="yi-modal-panel" style="max-width: 460px">
+            <div class="yi-modal-head">
+              <h3 id="collect-confirm-title">操作确认</h3>
+              <button type="button" class="yi-modal-close" data-close-confirm-modal="1">x</button>
+            </div>
+            <div class="yi-admin-form-grid" style="margin-top: 6px">
+              <p id="collect-confirm-message" class="yi-collect-hint" style="line-height: 1.7; margin: 0"></p>
+              <div class="yi-modal-foot" style="margin-top: 10px">
+                <button type="button" class="button-danger" data-close-confirm-modal="1">取消</button>
+                <button type="button" id="collect-confirm-submit-btn" class="button-primary">确认</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div id="admin-toast" class="yi-admin-toast" hidden></div>
       </main>
     </div>
@@ -265,6 +283,11 @@
         const editNoteInput = document.getElementById('edit-source-note');
         const openEditButtons = Array.from(document.querySelectorAll('.yi-open-edit-source-modal'));
         const closeEditButtons = Array.from(document.querySelectorAll('[data-close-edit-modal="1"]'));
+        const confirmModal = document.getElementById('collect-action-confirm-modal');
+        const confirmTitle = document.getElementById('collect-confirm-title');
+        const confirmMessage = document.getElementById('collect-confirm-message');
+        const confirmSubmitBtn = document.getElementById('collect-confirm-submit-btn');
+        const closeConfirmButtons = Array.from(document.querySelectorAll('[data-close-confirm-modal="1"]'));
         const progressPanel = document.getElementById('collect-progress-panel');
         const progressStatusText = document.getElementById('collect-progress-status-text');
         const progressSource = document.getElementById('collect-progress-source');
@@ -281,12 +304,15 @@
         const collectStatusChip = document.getElementById('collect-status-chip');
         const currentBatchMeta = document.getElementById('collect-current-batch-meta');
         const currentBatchList = document.getElementById('collect-current-batch-list');
+        const progressCancelBtn = document.getElementById('collect-progress-cancel-btn');
         const toast = document.getElementById('admin-toast');
         let collectTaskTimer = null;
         let currentCollectTaskId = '';
         let toastTimer = null;
+        const COLLECT_TASK_STORAGE_KEY = 'admin_collect_task_id';
+        let confirmResolver = null;
 
-        if (!modal || !title || !form || !openButtons.length) {
+        if (!modal || !title || !form) {
           return;
         }
 
@@ -303,6 +329,71 @@
           toastTimer = setTimeout(function () {
             toast.hidden = true;
           }, 3200);
+        }
+
+        function setCurrentCollectTaskId(taskId) {
+          currentCollectTaskId = String(taskId || '').trim();
+          try {
+            if (!window.localStorage) {
+              return;
+            }
+            if (currentCollectTaskId) {
+              window.localStorage.setItem(COLLECT_TASK_STORAGE_KEY, currentCollectTaskId);
+            } else {
+              window.localStorage.removeItem(COLLECT_TASK_STORAGE_KEY);
+            }
+          } catch (_) {
+            // ignore localStorage errors
+          }
+        }
+
+        function getPersistedCollectTaskId() {
+          try {
+            if (!window.localStorage) {
+              return '';
+            }
+            return String(window.localStorage.getItem(COLLECT_TASK_STORAGE_KEY) || '').trim();
+          } catch (_) {
+            return '';
+          }
+        }
+
+        function closeConfirmModal(confirmed) {
+          if (!confirmModal || confirmModal.hidden) {
+            return;
+          }
+          confirmModal.hidden = true;
+          const resolver = confirmResolver;
+          confirmResolver = null;
+          if (resolver) {
+            resolver(Boolean(confirmed));
+          }
+        }
+
+        function openConfirmModal(options) {
+          if (!confirmModal || !confirmSubmitBtn || !confirmTitle || !confirmMessage) {
+            return Promise.resolve(window.confirm(String((options && options.message) || '确认继续操作吗？')));
+          }
+          const opts = options || {};
+          const titleText = String(opts.title || '操作确认');
+          const messageText = String(opts.message || '确认继续操作吗？');
+          const confirmText = String(opts.confirmText || '确认');
+          const submitClassName = String(opts.confirmClassName || 'button-primary');
+
+          if (confirmResolver) {
+            confirmResolver(false);
+            confirmResolver = null;
+          }
+
+          confirmTitle.textContent = titleText;
+          confirmMessage.textContent = messageText;
+          confirmSubmitBtn.textContent = confirmText;
+          confirmSubmitBtn.className = submitClassName;
+          confirmModal.hidden = false;
+
+          return new Promise(function (resolve) {
+            confirmResolver = resolve;
+          });
         }
 
         async function loadTypes(sourceId) {
@@ -409,6 +500,9 @@
           }
 
           progressPanel.hidden = false;
+          if (task.id) {
+            setCurrentCollectTaskId(task.id);
+          }
           const statusMap = {
             running: { label: '进行中', className: 'is-running' },
             success: { label: '已完成', className: 'is-success' },
@@ -451,6 +545,10 @@
 
           if (progressResumeBtn) {
             progressResumeBtn.disabled = task.status === 'running' || !currentCollectTaskId;
+          }
+
+          if (progressCancelBtn) {
+            progressCancelBtn.disabled = !currentCollectTaskId;
           }
 
           const imported = Number(task.importedCount || 0);
@@ -512,10 +610,11 @@
           }
         }
 
-        async function pollCollectTask(taskId) {
+        async function pollCollectTask(taskId, options) {
           if (!taskId) {
-            return;
+            return null;
           }
+          const opts = options || {};
           try {
             const response = await fetch('/admin/collect/tasks/' + taskId, {
               credentials: 'same-origin',
@@ -533,13 +632,82 @@
               stopCollectTaskPolling();
               showToast(data.task.status === 'success' ? '采集任务已完成' : '采集任务结束（失败）', data.task.status === 'success');
             }
+            return data.task;
           } catch (error) {
             stopCollectTaskPolling();
+            const isNotFound = /任务不存在|已过期/.test(String(error.message || ''));
+            if (isNotFound) {
+              setCurrentCollectTaskId('');
+              if (opts.tryFallbackLatest) {
+                const latestTask = await fetchLatestCollectTask();
+                if (latestTask && latestTask.id) {
+                  setCurrentCollectTaskId(latestTask.id);
+                  renderCollectTask(latestTask);
+                  return latestTask;
+                }
+              }
+              if (progressStatusText) {
+                progressPanel.hidden = false;
+                progressStatusText.textContent = '未找到可恢复任务，任务可能已结束或已过期。';
+              }
+              return null;
+            }
             if (progressStatusText) {
               progressPanel.hidden = false;
               progressStatusText.textContent = '任务状态读取失败：' + error.message;
             }
             showToast('任务状态读取失败：' + error.message, false);
+            return null;
+          }
+        }
+
+        async function fetchLatestCollectTask() {
+          try {
+            const response = await fetch('/admin/collect/tasks/latest', {
+              credentials: 'same-origin',
+              headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+              }
+            });
+            const data = await response.json();
+            if (!data.ok || !data.task) {
+              return null;
+            }
+            return data.task;
+          } catch (_) {
+            return null;
+          }
+        }
+
+        async function restoreCollectTaskOnLoad() {
+          const persistedTaskId = getPersistedCollectTaskId();
+          if (persistedTaskId) {
+            setCurrentCollectTaskId(persistedTaskId);
+            const task = await pollCollectTask(persistedTaskId, { silentNotFound: true, tryFallbackLatest: true });
+            if (task) {
+              if (task.status === 'running') {
+                stopCollectTaskPolling();
+                collectTaskTimer = setInterval(function () {
+                  pollCollectTask(currentCollectTaskId, { silentNotFound: true, tryFallbackLatest: true });
+                }, 2500);
+              }
+              return;
+            }
+          }
+
+          const latestTask = await fetchLatestCollectTask();
+          if (!latestTask || !latestTask.id) {
+            return;
+          }
+
+          setCurrentCollectTaskId(latestTask.id);
+          renderCollectTask(latestTask);
+          if (latestTask.status === 'running') {
+            stopCollectTaskPolling();
+            collectTaskTimer = setInterval(function () {
+              pollCollectTask(currentCollectTaskId, { silentNotFound: true, tryFallbackLatest: true });
+            }, 2500);
           }
         }
 
@@ -547,7 +715,13 @@
           if (!currentCollectTaskId) {
             return;
           }
-          if (!window.confirm('确定要手动停止当前采集任务吗？')) {
+          const confirmed = await openConfirmModal({
+            title: '确认暂停采集',
+            message: '暂停会在当前页安全收尾后停止，本次任务可通过“继续”从下一页续采。',
+            confirmText: '确认暂停',
+            confirmClassName: 'button-danger'
+          });
+          if (!confirmed) {
             return;
           }
           try {
@@ -576,6 +750,15 @@
           if (!currentCollectTaskId) {
             return;
           }
+          const confirmed = await openConfirmModal({
+            title: '确认继续采集',
+            message: '将创建新的续采任务，并从上次结束页的下一页继续。',
+            confirmText: '确认继续',
+            confirmClassName: 'button-primary'
+          });
+          if (!confirmed) {
+            return;
+          }
           try {
             const response = await fetch('/admin/collect/tasks/' + currentCollectTaskId + '/resume', {
               method: 'POST',
@@ -589,7 +772,7 @@
             if (!data.ok || !data.taskId) {
               throw new Error(data.message || '继续采集失败');
             }
-            currentCollectTaskId = data.taskId;
+            setCurrentCollectTaskId(data.taskId);
             if (progressResumeBtn) {
               progressResumeBtn.disabled = true;
             }
@@ -600,10 +783,47 @@
             stopCollectTaskPolling();
             await pollCollectTask(currentCollectTaskId);
             collectTaskTimer = setInterval(function () {
-              pollCollectTask(currentCollectTaskId);
+              pollCollectTask(currentCollectTaskId, { silentNotFound: true, tryFallbackLatest: true });
             }, 2500);
           } catch (error) {
             showToast('继续采集失败：' + error.message, false);
+          }
+        }
+
+        async function cancelCurrentCollectTask() {
+          if (!currentCollectTaskId) {
+            return;
+          }
+          const confirmed = await openConfirmModal({
+            title: '确认取消采集',
+            message: '取消后会从恢复列表移除该任务，刷新页面也不会再看到它。',
+            confirmText: '确认取消',
+            confirmClassName: 'button-danger'
+          });
+          if (!confirmed) {
+            return;
+          }
+          try {
+            const response = await fetch('/admin/collect/tasks/' + currentCollectTaskId + '/cancel', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+              }
+            });
+            const data = await response.json();
+            if (!data.ok) {
+              throw new Error(data.message || '取消失败');
+            }
+            stopCollectTaskPolling();
+            setCurrentCollectTaskId('');
+            if (progressPanel) {
+              progressPanel.hidden = true;
+            }
+            showToast('采集任务已取消', true);
+          } catch (error) {
+            showToast('取消采集失败：' + error.message, false);
           }
         }
 
@@ -625,6 +845,22 @@
         if (progressResumeBtn) {
           progressResumeBtn.addEventListener('click', resumeCurrentCollectTask);
         }
+
+        if (progressCancelBtn) {
+          progressCancelBtn.addEventListener('click', cancelCurrentCollectTask);
+        }
+
+        if (confirmSubmitBtn) {
+          confirmSubmitBtn.addEventListener('click', function () {
+            closeConfirmModal(true);
+          });
+        }
+
+        closeConfirmButtons.forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            closeConfirmModal(false);
+          });
+        });
 
         form.addEventListener('submit', async function (event) {
           event.preventDefault();
@@ -656,7 +892,7 @@
               throw new Error(data.message || '启动采集任务失败');
             }
 
-            currentCollectTaskId = data.taskId;
+            setCurrentCollectTaskId(data.taskId);
             closeModal();
             stopCollectTaskPolling();
             if (progressPanel) {
@@ -668,7 +904,7 @@
             showToast('采集任务已启动', true);
             await pollCollectTask(currentCollectTaskId);
             collectTaskTimer = setInterval(function () {
-              pollCollectTask(currentCollectTaskId);
+              pollCollectTask(currentCollectTaskId, { silentNotFound: true, tryFallbackLatest: true });
             }, 2500);
           } catch (error) {
             showToast('采集任务启动失败：' + error.message, false);
@@ -707,8 +943,14 @@
           }
           if (event.key === 'Escape' && editModal && !editModal.hidden) {
             closeEditModal();
+            return;
+          }
+          if (event.key === 'Escape' && confirmModal && !confirmModal.hidden) {
+            closeConfirmModal(false);
           }
         });
+
+        restoreCollectTaskOnLoad();
       })();
     </script>
   </body>
